@@ -195,18 +195,31 @@ export function Modal({ title, eyebrow, children, onClose, className, closeDisab
     const onFocus = (event: FocusEvent) => {
       if (isTop() && !panel.contains(event.target as Node)) panel.focus({ preventScroll: true });
     };
+    let touchX = 0;
     let touchY = 0;
-    const onTouchStart = (event: TouchEvent) => { touchY = event.touches[0]?.clientY ?? 0; };
+    const onTouchStart = (event: TouchEvent) => {
+      touchX = event.touches[0]?.clientX ?? 0;
+      touchY = event.touches[0]?.clientY ?? 0;
+    };
     const onTouchMove = (event: TouchEvent) => {
       if (!isTop() || event.touches.length !== 1) return;
-      const nextY = event.touches[0].clientY;
-      const delta = nextY - touchY;
-      touchY = nextY;
+      const next = event.touches[0];
+      const dx = next.clientX - touchX;
+      const dy = next.clientY - touchY;
+      touchX = next.clientX;
+      touchY = next.clientY;
+      const horizontal = Math.abs(dx) > Math.abs(dy);
+      const delta = horizontal ? dx : dy;
       let node = event.target instanceof Element ? (event.target instanceof HTMLElement ? event.target : event.target.parentElement) : null;
       while (node && panel.contains(node)) {
-        const overflow = getComputedStyle(node).overflowY;
-        if (/(auto|scroll)/.test(overflow) && node.scrollHeight > node.clientHeight &&
-          ((delta > 0 && node.scrollTop > 0) || (delta < 0 && node.scrollTop + node.clientHeight < node.scrollHeight - 1))) return;
+        const style = getComputedStyle(node);
+        if (style.touchAction.includes('pan-x') && /(auto|scroll)/.test(style.overflowX) && node.scrollWidth > node.clientWidth) return;
+        const overflow = horizontal ? style.overflowX : style.overflowY;
+        const scroll = horizontal ? node.scrollLeft : node.scrollTop;
+        const size = horizontal ? node.scrollWidth : node.scrollHeight;
+        const viewport = horizontal ? node.clientWidth : node.clientHeight;
+        if (/(auto|scroll)/.test(overflow) && size > viewport &&
+          ((delta > 0 && scroll > 0) || (delta < 0 && scroll + viewport < size - 1))) return;
         node = node.parentElement;
       }
       if (event.cancelable) event.preventDefault();

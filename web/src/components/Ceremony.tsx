@@ -1,299 +1,15 @@
-import { ArrowRight, Hand, MousePointer2, Sparkles, WandSparkles } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
-import * as THREE from 'three';
+import { ArrowLeft, ArrowRight, Check, Shuffle, Sparkles, WandSparkles } from 'lucide-react';
+import { type PointerEvent, useEffect, useRef, useState } from 'react';
 import { api, jsonBody } from '../api';
 import type { Draw, TarotCard } from '../types';
-import { errorMessage, useReducedMotion } from '../utils';
-import { Button, InlineNotice, Modal } from './ui';
+import { cx, errorMessage, useReducedMotion } from '../utils';
+import { Button, IconButton, InlineNotice, Modal } from './ui';
 import { CardBack, CardFace } from './CardFace';
+import './Ceremony.css';
 
-const WEBGL_ROUND_SIZE = 9;
-const FALLBACK_ROUND_SIZE = 4;
-type CeremonyPhase = 'revealing' | 'shuffle' | 'fan' | 'flipping' | 'complete';
-
-function backTexture(): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 420;
-  const context = canvas.getContext('2d');
-  if (context) {
-    const gradient = context.createLinearGradient(0, 0, 256, 420);
-    gradient.addColorStop(0, '#251738');
-    gradient.addColorStop(1, '#0e0a18');
-    context.fillStyle = gradient;
-    context.fillRect(0, 0, 256, 420);
-    context.strokeStyle = '#e7c98f';
-    context.lineWidth = 3;
-    context.strokeRect(12, 12, 232, 396);
-    context.strokeStyle = '#e7c98f88';
-    context.lineWidth = 1;
-    context.strokeRect(21, 21, 214, 378);
-    context.beginPath();
-    context.arc(128, 196, 61, 0, Math.PI * 2);
-    context.stroke();
-    context.beginPath();
-    context.arc(145, 181, 43, 0, Math.PI * 2);
-    context.strokeStyle = '#e7c98f';
-    context.lineWidth = 5;
-    context.stroke();
-    context.fillStyle = '#f5dfaa';
-    context.font = '34px serif';
-    context.textAlign = 'center';
-    context.fillText('✦', 104, 210);
-    context.font = '13px serif';
-    context.fillText('ASTRAL VEIL', 128, 342);
-    for (let index = 0; index < 24; index += 1) {
-      const x = 30 + ((index * 67) % 196);
-      const y = 35 + ((index * 97) % 340);
-      context.fillRect(x, y, index % 3 === 0 ? 2 : 1, index % 3 === 0 ? 2 : 1);
-    }
-  }
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-
-function frontTexture(card: TarotCard): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 420;
-  const context = canvas.getContext('2d');
-  if (context) {
-    const gradient = context.createRadialGradient(128, 170, 10, 128, 210, 230);
-    gradient.addColorStop(0, '#5c3b78');
-    gradient.addColorStop(1, '#130d20');
-    context.fillStyle = gradient;
-    context.fillRect(0, 0, 256, 420);
-    context.strokeStyle = '#e7c98f';
-    context.lineWidth = 3;
-    context.strokeRect(12, 12, 232, 396);
-    context.fillStyle = '#f4e8fa';
-    context.textAlign = 'center';
-    context.font = '52px serif';
-    context.fillText(card.arcana === 'major' ? '✧' : '❖', 128, 178);
-    context.font = 'bold 27px "Microsoft YaHei", serif';
-    context.fillText(card.name_zh, 128, 294);
-    context.fillStyle = '#d9bd8c';
-    context.font = '15px serif';
-    context.fillText(card.orientation_zh, 128, 329);
-  }
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-function prepareFrontTexture(texture: THREE.Texture, card: TarotCard): void {
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.repeat.x = -1;
-  texture.offset.x = 1;
-  texture.center.set(0.5, 0.5);
-  texture.rotation = card.orientation === 'reversed' ? Math.PI : 0;
-}
-
-function ThreeDeck({
-  deckCount,
-  phase,
-  selectedMesh,
-  selectedCard,
-  onSelect,
-  onUnavailable,
-}: {
-  deckCount: number;
-  phase: CeremonyPhase;
-  selectedMesh: number | null;
-  selectedCard: TarotCard | null;
-  onSelect: (index: number) => void;
-  onUnavailable: () => void;
-}) {
-  const hostRef = useRef<HTMLDivElement>(null);
-  const liveRef = useRef({ phase, selectedMesh, selectedCard });
-  const selectRef = useRef(onSelect);
-  const unavailableRef = useRef(onUnavailable);
-  liveRef.current = { phase, selectedMesh, selectedCard };
-  selectRef.current = onSelect;
-  unavailableRef.current = onUnavailable;
-
-  useEffect(() => {
-    const host = hostRef.current;
-    let alive = true;
-    if (!host) return;
-    let renderer: THREE.WebGLRenderer;
-    try {
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'low-power' });
-    } catch {
-      unavailableRef.current();
-      return;
-    }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, window.innerWidth < 720 ? 1.25 : 1.6));
-    renderer.setClearColor(0x000000, 0);
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.domElement.setAttribute('aria-hidden', 'true');
-    host.appendChild(renderer.domElement);
-
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
-    camera.position.set(0, 0, 7.4);
-    const geometry = new THREE.PlaneGeometry(1.12, 1.84);
-    const sharedBack = backTexture();
-    const meshes: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>[] = [];
-    for (let index = 0; index < deckCount; index += 1) {
-      const material = new THREE.MeshBasicMaterial({ map: sharedBack, side: THREE.DoubleSide, transparent: true });
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.position.set(0, -0.1 + index * 0.004, index * 0.012);
-      mesh.userData.index = index;
-      mesh.userData.selected = false;
-      scene.add(mesh);
-      meshes.push(mesh);
-    }
-
-    const raycaster = new THREE.Raycaster();
-    const pointer = new THREE.Vector2();
-    const hitTest = (event: PointerEvent, select: boolean) => {
-      const bounds = renderer.domElement.getBoundingClientRect();
-      pointer.set(((event.clientX - bounds.left) / bounds.width) * 2 - 1, -((event.clientY - bounds.top) / bounds.height) * 2 + 1);
-      raycaster.setFromCamera(pointer, camera);
-      const hit = raycaster.intersectObjects(meshes).find(({ object }) => !object.userData.selected);
-      renderer.domElement.style.cursor = hit && liveRef.current.phase === 'fan' ? 'pointer' : 'default';
-      if (select && hit && liveRef.current.phase === 'fan') selectRef.current(hit.object.userData.index as number);
-    };
-    const onPointerDown = (event: PointerEvent) => hitTest(event, true);
-    const onPointerMove = (event: PointerEvent) => hitTest(event, false);
-    renderer.domElement.addEventListener('pointerdown', onPointerDown);
-    renderer.domElement.addEventListener('pointermove', onPointerMove);
-
-    const resize = () => {
-      const width = Math.max(host.clientWidth, 1);
-      const height = Math.max(host.clientHeight, 1);
-      renderer.setSize(width, height, false);
-      camera.aspect = width / height;
-      camera.position.z = Math.max(4.8, 6.5 / (2 * Math.tan(THREE.MathUtils.degToRad(21)) * camera.aspect));
-      camera.updateProjectionMatrix();
-    };
-    const observer = new ResizeObserver(resize);
-    observer.observe(host);
-    resize();
-
-    let frame = 0;
-    let lastSelected: number | null = null;
-    let flipStarted = 0;
-    let flipMesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> | null = null;
-    let textureApplied = false;
-    const particles: Array<{ points: THREE.Points; material: THREE.PointsMaterial; born: number }> = [];
-    const start = performance.now();
-
-    const animate = (now: number) => {
-      const time = (now - start) / 1000;
-      const live = liveRef.current;
-      if (live.selectedMesh !== null && live.selectedMesh !== lastSelected) {
-        lastSelected = live.selectedMesh;
-        flipMesh = meshes[lastSelected];
-        flipMesh.userData.selected = true;
-        flipStarted = now;
-        textureApplied = false;
-        const positions = new Float32Array(36 * 3);
-        for (let index = 0; index < 36; index += 1) {
-          positions[index * 3] = Math.sin(index * 2.17) * 0.58;
-          positions[index * 3 + 1] = Math.cos(index * 1.73) * 0.78;
-          positions[index * 3 + 2] = 0.1 + (index % 5) * 0.035;
-        }
-        const particleGeometry = new THREE.BufferGeometry();
-        particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        const material = new THREE.PointsMaterial({ color: 0xe7c98f, size: 0.045, transparent: true, opacity: 0.9, depthWrite: false });
-        const points = new THREE.Points(particleGeometry, material);
-        points.position.copy(flipMesh.position);
-        scene.add(points);
-        particles.push({ points, material, born: now });
-      }
-
-      meshes.forEach((mesh, index) => {
-        const center = index - (deckCount - 1) / 2;
-        if (live.phase === 'shuffle' || live.phase === 'revealing') {
-          const envelope = 0.65 + Math.sin(time * 2.4 + index * 0.2) * 0.25;
-          mesh.position.x += (Math.sin(time * 3.1 + index * 0.72) * 1.75 * envelope - mesh.position.x) * 0.09;
-          mesh.position.y += (Math.cos(time * 2.7 + index * 0.51) * 0.5 - mesh.position.y) * 0.09;
-          mesh.rotation.z += (Math.sin(time * 2.2 + index) * 0.4 - mesh.rotation.z) * 0.08;
-        } else {
-          const spacing = Math.min(0.56, 6 / deckCount);
-          const normalized = center / Math.max((deckCount - 1) / 2, 1);
-          const selectedLift = mesh.userData.selected ? 0.85 : 0;
-          mesh.position.x += (center * spacing - mesh.position.x) * 0.085;
-          mesh.position.y += (normalized * normalized * -0.52 + selectedLift - 0.05 - mesh.position.y) * 0.085;
-          mesh.position.z += (index * 0.012 - mesh.position.z) * 0.08;
-          mesh.rotation.z += (-normalized * 0.34 - mesh.rotation.z) * 0.085;
-        }
-        if (mesh !== flipMesh) mesh.rotation.y += ((mesh.userData.selected ? Math.PI : 0) - mesh.rotation.y) * 0.08;
-      });
-
-      if (flipMesh && lastSelected !== null) {
-        const progress = Math.min((now - flipStarted) / 650, 1);
-        const eased = 1 - Math.pow(1 - progress, 3);
-        flipMesh.rotation.y = eased * Math.PI;
-        if (progress > 0.45 && !textureApplied && live.selectedCard) {
-          const targetMesh = flipMesh;
-          const targetCard = live.selectedCard;
-          const material = targetMesh.material;
-          const textureToken = Symbol(targetCard.id);
-          targetMesh.userData.textureToken = textureToken;
-          if (material.map && material.map !== sharedBack) material.map.dispose();
-          const generated = frontTexture(targetCard);
-          prepareFrontTexture(generated, targetCard);
-          material.map = generated;
-          material.needsUpdate = true;
-          textureApplied = true;
-          new THREE.TextureLoader().load(`/cards/${encodeURIComponent(targetCard.id)}.jpg`, (texture) => {
-            if (!alive || targetMesh.userData.textureToken !== textureToken) {
-              texture.dispose();
-              return;
-            }
-            prepareFrontTexture(texture, targetCard);
-            if (material.map && material.map !== sharedBack) material.map.dispose();
-            material.map = texture;
-            material.needsUpdate = true;
-          }, undefined, () => undefined);
-        }
-      }
-
-      for (let index = particles.length - 1; index >= 0; index -= 1) {
-        const particle = particles[index];
-        const progress = Math.min((now - particle.born) / 850, 1);
-        particle.points.scale.setScalar(0.5 + (1 - Math.pow(1 - progress, 2)) * 1.7);
-        particle.points.rotation.z = progress * 0.7;
-        particle.material.opacity = (1 - progress) * 0.85;
-        if (progress >= 1) {
-          scene.remove(particle.points);
-          particle.points.geometry.dispose();
-          particle.material.dispose();
-          particles.splice(index, 1);
-        }
-      }
-      renderer.render(scene, camera);
-      frame = requestAnimationFrame(animate);
-    };
-    frame = requestAnimationFrame(animate);
-
-    return () => {
-      alive = false;
-      cancelAnimationFrame(frame);
-      observer.disconnect();
-      renderer.domElement.removeEventListener('pointerdown', onPointerDown);
-      renderer.domElement.removeEventListener('pointermove', onPointerMove);
-      meshes.forEach((mesh) => {
-        if (mesh.material.map && mesh.material.map !== sharedBack) mesh.material.map.dispose();
-        mesh.material.dispose();
-      });
-      sharedBack.dispose();
-      geometry.dispose();
-      particles.forEach(({ points, material }) => {
-        points.geometry.dispose();
-        material.dispose();
-      });
-      renderer.dispose();
-      renderer.domElement.remove();
-    };
-  }, []);
-
-  return <div className="three-deck" ref={hostRef} />;
-}
+const DECK_SIZE = 78;
+type Phase = 'loading' | 'ready' | 'shuffle' | 'choose' | 'flipping' | 'complete';
+interface Pick { slot: number; card: TarotCard }
 
 export function Ceremony({ draw, conversationId, onRevealed, onFinish, onClose }: {
   draw: Draw;
@@ -303,156 +19,182 @@ export function Ceremony({ draw, conversationId, onRevealed, onFinish, onClose }
   onClose: () => void;
 }) {
   const reducedMotion = useReducedMotion();
-  const [touchLayout] = useState(() => window.matchMedia('(max-width: 760px), (pointer: coarse)').matches);
-  const [phase, setPhase] = useState<CeremonyPhase>('revealing');
+  const [phase, setPhase] = useState<Phase>('loading');
   const [result, setResult] = useState<Draw | null>(null);
-  const [selectedCount, setSelectedCount] = useState(0);
-  const [selectedMesh, setSelectedMesh] = useState<number | null>(null);
+  const [picks, setPicks] = useState<Pick[]>([]);
+  const [focused, setFocused] = useState<number | null>(null);
+  const [inspected, setInspected] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
-  const [webglFailed, setWebglFailed] = useState(false);
   const [skipping, setSkipping] = useState(false);
-  const [round, setRound] = useState(0);
-  const usedMeshes = useRef(new Set<number>());
-  const revealedMeshes = useRef(new Map<number, TarotCard>());
+  const deckRef = useRef<HTMLDivElement>(null);
+  const trayRef = useRef<HTMLDivElement>(null);
+  const busy = useRef(false);
+  const drag = useRef({ x: 0, scroll: 0, active: false, moved: false });
   const revealPromise = useRef<Promise<Draw> | null>(null);
-  const revealedRef = useRef(onRevealed);
-  const finishRef = useRef(onFinish);
-  const drawSnapshot = useRef(draw);
-  const reducedRef = useRef(reducedMotion);
-  reducedRef.current = reducedMotion;
-  revealedRef.current = onRevealed;
-  finishRef.current = onFinish;
-  const total = result?.positions.length ?? draw.positions.length;
-  const fallback = reducedMotion || webglFailed || touchLayout;
-  const deckSize = fallback ? FALLBACK_ROUND_SIZE : WEBGL_ROUND_SIZE;
-  const previousFallback = useRef(fallback);
-
-  useEffect(() => {
-    if (previousFallback.current === fallback) return;
-    previousFallback.current = fallback;
-    usedMeshes.current.clear();
-    revealedMeshes.current.clear();
-    setSelectedMesh(null);
-    setRound((value) => value + 1);
-  }, [fallback]);
+  const snapshot = useRef(draw);
+  const onRevealedRef = useRef(onRevealed);
+  onRevealedRef.current = onRevealed;
+  const total = result?.cards.length ?? draw.positions.length;
+  const used = new Set(picks.map((pick) => pick.slot));
+  const shownCard = picks[inspected ?? picks.length - 1]?.card;
+  const showFace = Boolean(shownCard && focused === null && phase !== 'ready' && phase !== 'shuffle');
+  const position = result?.positions[picks.length] ?? draw.positions[picks.length];
 
   useEffect(() => {
     let active = true;
-    const snapshot = drawSnapshot.current;
     setError('');
     setResult(null);
-    setSelectedCount(0);
-    setSelectedMesh(null);
-    setRound(0);
-    usedMeshes.current.clear();
-    revealedMeshes.current.clear();
-    setPhase('revealing');
-    const request = snapshot.status === 'proposed'
-      ? api<Draw>(`/api/conversations/${conversationId}/draws/${snapshot.id}/reveal`, { method: 'POST', body: jsonBody({}) })
-      : Promise.resolve(snapshot);
+    setPicks([]);
+    setFocused(null);
+    setInspected(null);
+    setPhase('loading');
+    busy.current = false;
+    const current = snapshot.current;
+    const request = (current.status === 'proposed'
+      ? api<Draw>(`/api/conversations/${conversationId}/draws/${current.id}/reveal`, { method: 'POST', body: jsonBody({}) })
+      : Promise.resolve(current)).then((revealed) => {
+        if (!revealed.cards.length || revealed.cards.length > DECK_SIZE || revealed.cards.length !== revealed.positions.length) {
+          throw new Error('牌阵数量未能对应，请重新连接');
+        }
+        return revealed;
+      });
     revealPromise.current = request;
     request.then((revealed) => {
-      revealedRef.current(revealed);
+      onRevealedRef.current(revealed);
       if (!active) return;
       setResult(revealed);
-      setPhase(reducedRef.current || touchLayout ? 'fan' : 'shuffle');
-    }).catch((reason) => {
-      if (active) setError(errorMessage(reason));
-    });
+      setPhase('ready');
+    }).catch((reason) => { if (active) setError(errorMessage(reason)); });
     return () => { active = false; };
-  }, [attempt, conversationId, draw.id, touchLayout]);
+  }, [attempt, conversationId, draw.id]);
 
   useEffect(() => {
     if (phase !== 'shuffle') return;
-    const timer = window.setTimeout(() => setPhase('fan'), reducedMotion ? 0 : 1450);
+    const timer = window.setTimeout(() => setPhase('choose'), reducedMotion ? 0 : 1500);
     return () => window.clearTimeout(timer);
   }, [phase, reducedMotion]);
 
   useEffect(() => {
     if (phase !== 'flipping') return;
     const timer = window.setTimeout(() => {
-      setSelectedMesh(null);
-      if (selectedCount >= total) {
-        setPhase('complete');
-      } else {
-        if (usedMeshes.current.size >= deckSize) {
-          revealedMeshes.current.clear();
-          usedMeshes.current.clear();
-          setRound((value) => value + 1);
-        }
-        setPhase('fan');
-      }
-    }, reducedMotion ? 120 : 900);
+      busy.current = false;
+      setPhase(picks.length >= total ? 'complete' : 'choose');
+    }, reducedMotion ? 120 : 1250);
     return () => window.clearTimeout(timer);
-  }, [phase, reducedMotion, selectedCount, total, deckSize]);
+  }, [phase, picks.length, total, reducedMotion]);
 
-  const choose = (meshIndex: number) => {
-    if (phase !== 'fan' || !result || meshIndex >= deckSize || usedMeshes.current.has(meshIndex)) return;
-    usedMeshes.current.add(meshIndex);
-    const card = result.cards[selectedCount];
-    if (card) revealedMeshes.current.set(meshIndex, card);
-    setSelectedMesh(meshIndex);
-    setSelectedCount((count) => count + 1);
+  useEffect(() => {
+    const tray = trayRef.current;
+    if (tray) tray.scrollLeft = tray.scrollWidth;
+  }, [picks.length]);
+
+  const selectSlot = (slot: number) => {
+    if (phase !== 'choose' || used.has(slot) || busy.current) return;
+    setInspected(null);
+    setFocused(slot);
+  };
+
+  const revealSelected = () => {
+    if (phase !== 'choose' || !result || focused === null || used.has(focused) || busy.current) return;
+    const card = result.cards[picks.length];
+    if (!card) return;
+    busy.current = true;
+    setPicks((previous) => [...previous, { slot: focused, card }]);
+    setFocused(null);
+    setInspected(null);
     setPhase('flipping');
   };
 
   const chooseByFeeling = () => {
-    const available = Array.from({ length: deckSize }, (_, index) => index).filter((index) => !usedMeshes.current.has(index));
-    if (available.length) choose(available[Math.floor(Math.random() * available.length)]);
+    const available = Array.from({ length: DECK_SIZE }, (_, index) => index).filter((slot) => !used.has(slot));
+    if (!available.length || phase !== 'choose') return;
+    const slot = available[Math.floor(Math.random() * available.length)];
+    selectSlot(slot);
+    const rail = deckRef.current;
+    const button = rail?.querySelector<HTMLElement>(`[data-slot="${slot}"]`);
+    if (rail && button) rail.scrollTo({ left: button.offsetLeft - rail.clientWidth / 2 + button.clientWidth / 2, behavior: reducedMotion ? 'auto' : 'smooth' });
   };
 
   const skip = async () => {
-    if (!revealPromise.current) return;
+    if (!revealPromise.current || skipping) return;
     setSkipping(true);
-    try {
-      const revealed = await revealPromise.current;
-      finishRef.current(revealed);
-    } catch (reason) {
-      setError(errorMessage(reason));
-      setSkipping(false);
-    }
+    try { onFinish(await revealPromise.current); }
+    catch (reason) { setError(errorMessage(reason)); setSkipping(false); }
   };
 
-  const activeCard = result && selectedCount > 0 ? result.cards[selectedCount - 1] : null;
+  const browse = (direction: number) => {
+    const rail = deckRef.current;
+    rail?.scrollBy({ left: direction * rail.clientWidth * .7, behavior: reducedMotion ? 'auto' : 'smooth' });
+  };
+
+  const startDrag = (event: PointerEvent<HTMLDivElement>) => {
+    drag.current.active = false;
+    drag.current.moved = false;
+    if (event.pointerType !== 'mouse' || event.button !== 0) return;
+    drag.current = { x: event.clientX, scroll: event.currentTarget.scrollLeft, active: true, moved: false };
+  };
+  const moveDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if (!drag.current.active) return;
+    if (!(event.buttons & 1)) { drag.current.active = false; return; }
+    const delta = event.clientX - drag.current.x;
+    if (Math.abs(delta) > 6) {
+      drag.current.moved = true;
+      if (!event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.setPointerCapture(event.pointerId);
+      event.currentTarget.scrollLeft = drag.current.scroll - delta;
+    }
+  };
+  const endDrag = (event: PointerEvent<HTMLDivElement>) => {
+    drag.current.active = false;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+
+  const action = () => {
+    if (phase === 'ready') setPhase(reducedMotion ? 'choose' : 'shuffle');
+    else if (phase === 'choose') revealSelected();
+    else if (phase === 'complete' && result) onFinish(result);
+  };
+  const actionLabel = phase === 'loading' ? '星牌归位中' : phase === 'ready' ? '洗牌与展牌' : phase === 'shuffle' ? '正在洗牌' : phase === 'flipping' ? '星牌正在显现' : phase === 'complete' ? '查看完整牌阵' : focused === null ? '先选中一张牌' : '揭开这张牌';
+  const hint = error ? '请重新连接星牌' : phase === 'ready' ? '让心绪沉静，再将牌交给直觉' : phase === 'shuffle' ? '星轨交错，等待此刻的相逢' : phase === 'flipping' ? `${shownCard?.position} · ${shownCard?.name_zh}` : phase === 'complete' ? `${total} 张星牌已就位` : phase === 'choose' ? `第 ${picks.length + 1} 位 · ${position || '凭直觉选择'}` : '正在请星牌归位';
+  const deckVisible = phase === 'choose' || phase === 'flipping' || phase === 'complete';
 
   return (
     <Modal title={draw.spread_name} eyebrow="星牌仪式" onClose={onClose} className="ceremony-modal" closeDisabled={skipping}>
       <div className="ceremony-toolbar">
-        <div className="ceremony-progress" aria-label={`已选择 ${selectedCount} 张，共 ${total} 张`}>
-          {Array.from({ length: total }, (_, index) => <i key={index} className={index < selectedCount ? 'is-filled' : ''} />)}
-        </div>
-        <span className="ceremony-count" aria-live="polite">{selectedCount} / {total}</span>
-        <Button variant="ghost" onClick={skip} loading={skipping} disabled={phase === 'complete' || !!error}>跳过仪式</Button>
+        <div className="ceremony-progress" role="progressbar" aria-label="抽牌进度" aria-valuemin={0} aria-valuemax={total} aria-valuenow={picks.length}><span style={{ width: `${picks.length / Math.max(total, 1) * 100}%` }} /></div>
+        <span className="ceremony-count">{picks.length} / {total}</span>
+        <Button variant="ghost" onClick={() => void skip()} loading={skipping} disabled={phase === 'complete' || !!error}>跳过仪式</Button>
       </div>
-      <div className={`ceremony-stage${fallback ? ' ceremony-stage--touch' : ''}${phase === 'complete' ? ' ceremony-stage--complete' : ''}`}>
-        <div className="ceremony-stage__halo" aria-hidden="true"><span>✦</span></div>
-        {phase === 'revealing' && !error && <div className="ceremony-wait"><WandSparkles /><span>正在请星牌归位</span></div>}
-        {error && <div className="ceremony-error"><InlineNotice tone="error">{error}</InlineNotice><Button variant="secondary" onClick={() => setAttempt((value) => value + 1)}>重新连接</Button></div>}
-        {!error && phase !== 'revealing' && phase !== 'complete' && result && !fallback && (
-          <ThreeDeck key={`${round}-${deckSize}`} deckCount={deckSize} phase={phase} selectedMesh={selectedMesh} selectedCard={activeCard} onSelect={choose} onUnavailable={() => { usedMeshes.current.clear(); revealedMeshes.current.clear(); setRound((value) => value + 1); setWebglFailed(true); setPhase('fan'); }} />
-        )}
-        {!error && phase !== 'revealing' && result && fallback && phase !== 'complete' && (
-          <div className="ceremony-picks" aria-label="请选择星牌">
-            {Array.from({ length: deckSize }, (_, index) => {
-              const card = revealedMeshes.current.get(index);
-              return (
-                <button type="button" key={`${round}-${index}`} className={card ? 'ceremony-pick is-selected' : 'ceremony-pick'} disabled={phase !== 'fan' || usedMeshes.current.has(index)} onClick={() => choose(index)} aria-label={card ? `${card.position}：${card.name_zh}，${card.orientation_zh}，已选择` : `选择第 ${index + 1} 张星牌`} style={{ '--delay': `${index * 45}ms` } as React.CSSProperties}>
-                  {card ? <CardFace card={card} showName={false} /> : <CardBack />}
-                  <span className="ceremony-pick__label">{card ? `${card.name_zh} · ${card.orientation_zh}` : `星牌 ${String(index + 1).padStart(2, '0')}`}</span>
-                </button>
-              );
-            })}
+      <div className={cx('ceremony-stage', `ceremony-stage--${phase}`)}>
+        <div className="ceremony-altar">
+          <div className="ceremony-orbits" aria-hidden="true"><i /><i /><i /><span>✦</span></div>
+          <div className={cx('ceremony-hero', phase === 'shuffle' && 'is-shuffling')} aria-hidden={!shownCard}>
+            <div className="ceremony-stack ceremony-stack--one"><CardBack /></div>
+            <div className="ceremony-stack ceremony-stack--two"><CardBack /></div>
+            <div className={cx('ceremony-hero__inner', showFace && 'is-face')}>
+              <div className="ceremony-hero__back" aria-hidden={showFace}><CardBack /></div>
+              <div className="ceremony-hero__front" aria-hidden={!showFace}>{shownCard && <CardFace key={shownCard.id} card={shownCard} showName={false} />}</div>
+            </div>
           </div>
-        )}
-        {phase === 'complete' && result && (
-          <div className="ceremony-complete"><Sparkles aria-hidden="true" /><span className="eyebrow">星牌已就位</span><h3>答案已在牌面间苏醒</h3><div className="ceremony-revealed">{result.cards.map((card, index) => <figure key={`${card.id}-${index}`} style={{ '--delay': `${index * 55}ms` } as React.CSSProperties}><figcaption>{card.position || result.positions[index]}</figcaption><CardFace card={card} /></figure>)}</div></div>
-        )}
+          <div className="ceremony-hero-caption" aria-live="polite">
+            <strong>{showFace ? `${shownCard?.name_zh} · ${shownCard?.orientation_zh}` : focused !== null ? `第 ${focused + 1} 张 · 等待揭晓` : phase === 'shuffle' ? '星牌正在交汇' : '聆听直觉的回声'}</strong>
+            <small>{showFace ? shownCard?.position : '✧ ASTRAL VEIL ✧'}</small>
+          </div>
+        </div>
+        <div className={cx('ceremony-deck', !deckVisible && 'is-veiled')}>
+          <div className="ceremony-deck__heading"><span>{DECK_SIZE - picks.length} 张待选</span><small>左右滑动 · 选中后揭牌</small><div><IconButton label="向前浏览牌池" onClick={() => browse(-1)} disabled={!deckVisible}><ArrowLeft /></IconButton><IconButton label="向后浏览牌池" onClick={() => browse(1)} disabled={!deckVisible}><ArrowRight /></IconButton></div></div>
+          <div className="ceremony-deck__rail" ref={deckRef} role="group" aria-label="78 张星牌，左右浏览后选择" onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} onLostPointerCapture={() => { drag.current.active = false; }} onClickCapture={(event) => { if (drag.current.moved) { event.preventDefault(); event.stopPropagation(); drag.current.moved = false; } }}>
+            {Array.from({ length: DECK_SIZE }, (_, slot) => <button type="button" key={slot} data-slot={slot} className={cx('ceremony-slot', focused === slot && 'is-focused', used.has(slot) && 'is-used')} aria-label={`第 ${slot + 1} 张星牌${used.has(slot) ? '，已抽取' : ''}`} aria-pressed={focused === slot} disabled={phase !== 'choose' || used.has(slot) || skipping} onClick={() => selectSlot(slot)}><CardBack /><span>{used.has(slot) ? <Check /> : String(slot + 1).padStart(2, '0')}</span></button>)}
+          </div>
+        </div>
+        <div className="ceremony-tray" ref={trayRef} aria-label="已抽取的牌">
+          {picks.length === 0 ? <span className="ceremony-tray__empty"><Sparkles />属于你的星牌，将在这里相遇</span> : picks.map(({ slot, card }, index) => <button type="button" key={slot} disabled={phase === 'flipping' || skipping} className={cx('ceremony-tray__card', showFace && shownCard?.id === card.id && 'is-current')} aria-label={`查看第 ${index + 1} 张：${card.position}，${card.name_zh}`} onClick={() => { setFocused(null); setInspected(index); }}><CardFace card={card} showName={false} /><span><small>{String(index + 1).padStart(2, '0')}</small>{card.name_zh}</span></button>)}
+        </div>
+        {error && <div className="ceremony-error"><InlineNotice tone="error">{error}</InlineNotice><Button onClick={() => setAttempt((value) => value + 1)}>重新连接</Button></div>}
       </div>
       <footer className="ceremony-footer">
-        <span className="ceremony-hint" role="status">{error ? '星牌暂未归位，请重试' : phase === 'fan' ? <><MousePointer2 />{result?.positions[selectedCount] || '凭直觉点选一张牌'}</> : phase === 'flipping' ? <><Sparkles />{activeCard ? `${activeCard.position} · ${activeCard.name_zh}` : '星牌正在转身'}</> : phase === 'complete' ? '每一次相逢，都恰逢其时' : <><Hand />让心绪慢慢沉静</>}</span>
-        {phase === 'fan' && <Button variant="secondary" onClick={chooseByFeeling}>为我感应此牌</Button>}
-        {phase === 'complete' && result && <Button onClick={() => finishRef.current(result)}>查看牌面<ArrowRight /></Button>}
+        <span className="ceremony-hint" role="status" title={hint}>{hint}</span>
+        <div className="ceremony-footer__actions"><IconButton label="凭直觉为我选中一张" disabled={phase !== 'choose' || skipping} onClick={chooseByFeeling}><WandSparkles /></IconButton><Button onClick={action} disabled={!!error || skipping || phase === 'loading' || phase === 'shuffle' || phase === 'flipping' || (phase === 'choose' && focused === null)}>{phase === 'ready' ? <Shuffle /> : <Sparkles />}{actionLabel}<ArrowRight /></Button></div>
       </footer>
     </Modal>
   );

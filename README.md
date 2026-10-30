@@ -4,14 +4,14 @@
 
 项目仓库：[someone97421/tarot-master](https://github.com/someone97421/tarot-master)。用户端入口为 `/`，管理端入口为 `/#/admin`；模型配置仅对管理员开放。
 
-技术栈：React、TypeScript、Vite、Three.js、FastAPI、SQLite。模型接口支持 OpenAI Chat Completions、OpenAI Responses 和 Anthropic Messages。
+技术栈：React、TypeScript、Vite、CSS 3D、FastAPI、SQLite。模型接口支持 OpenAI Chat Completions、OpenAI Responses 和 Anthropic Messages。
 
 ## 已实现功能
 
 - 登录后进入新祈愿，首次发送才保存会话；历史对话及其抽牌结果长期保留。
 - 根据祈求设计牌阵和牌数，先呈现浪漫开场及牌位职责，再开启抽牌。
 - 后端系统随机抽牌，单次不重复，默认含正逆位；重复揭牌请求返回原结果。
-- 三维仪式、逐张点选翻牌、跳过动画、减少动态效果及 WebGL 不可用时的退化界面。
+- 78 张连续展牌，触摸滑动或鼠标拖动浏览；洗牌后先选中再揭牌，居中立体翻牌，已抽轨迹可回看。固定舞台适配横竖屏，支持跳过仪式和减少动态效果。
 - 牌面放大和翻看、桌面解析表格、移动端逐牌卡片、整体叙事与行动建议。
 - 普通聊天与排阵开场逐步输出；解读在最终卡片、表格、综合解读、行动列表和结语版式内流式填充，完整结构校验后保存，不重复追加正文。
 - JPEG、PNG、WebP 图片上传与模型理解，每条消息最多 4 张、单张最多 10 MB。图片自动校正方向、缩至最大 2048 像素并转为 JPEG，存储和访问按账号隔离。

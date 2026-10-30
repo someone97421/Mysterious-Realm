@@ -1,0 +1,131 @@
+.modal-backdrop:has(.ceremony-modal) { height: 100svh; }
+.modal.ceremony-modal {
+  width: min(1000px, 100%);
+  height: min(820px, calc(100svh - 48px));
+  display: grid;
+  grid-template-rows: 64px 36px minmax(0, 1fr) 72px;
+  gap: 12px;
+  padding: 20px;
+  overflow: hidden;
+  overflow-anchor: none;
+  border-color: #d6b77755;
+  background: radial-gradient(ellipse at 50% 35%, #4b296548, transparent 68%), #130e1e;
+  animation: none;
+}
+.ceremony-modal > .modal__header { position: relative; top: auto; margin: 0; padding: 0; align-items: center; background: transparent; }
+.ceremony-modal .modal__header h2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 21px; line-height: 1.4; }
+.ceremony-toolbar { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.ceremony-toolbar .button { padding: 6px 10px; min-height: 32px; font-size: 11px; }
+.ceremony-progress { flex: 1; height: 3px; overflow: hidden; border-radius: 4px; background: #e7c98f20; }
+.ceremony-progress > span { display: block; height: 100%; background: linear-gradient(90deg, #a989e8, #f4dc9e); transition: width 350ms ease; }
+.ceremony-count { flex-shrink: 0; color: var(--gold); font-size: 12px; font-variant-numeric: tabular-nums; }
+.ceremony-stage { position: relative; display: grid; grid-template-rows: minmax(0, 1fr) 184px 64px; gap: 8px; min-height: 0; min-width: 0; overflow: hidden; border: 1px solid #e7c98f25; border-radius: 18px; background: radial-gradient(ellipse at 50% 22%, #68468c45, transparent 60%), #0a0712b0; }
+.ceremony-altar { position: relative; display: flex; align-items: center; justify-content: center; min-height: 0; padding: 10px 0 48px; isolation: isolate; }
+.ceremony-orbits { position: absolute; z-index: -1; width: min(78%, 380px); height: 90%; top: 0; pointer-events: none; }
+.ceremony-orbits i { position: absolute; inset: 0; border: 1px solid #d9bc7a38; border-radius: 50%; box-shadow: 0 0 40px #a989e818, inset 0 0 35px #a989e812; }
+.ceremony-orbits i:nth-child(2) { inset: 12%; border-style: dashed; transform: rotate(-24deg); }
+.ceremony-orbits i:nth-child(3) { inset: 26%; border-color: #a989e844; }
+.ceremony-orbits > span { position: absolute; top: 0; left: 50%; transform: translateX(-50%); color: var(--gold); font-size: 24px; text-shadow: 0 0 20px #f4d99488; }
+.ceremony-hero { position: relative; height: 100%; max-height: 300px; aspect-ratio: 5 / 8; perspective: 1200px; filter: drop-shadow(0 12px 20px #0009); }
+.ceremony-hero__inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; }
+.ceremony-hero__inner.is-face { transform: rotateY(180deg); }
+.ceremony-stage--flipping .ceremony-hero__inner { transition: transform 850ms cubic-bezier(.2,.7,.2,1); }
+.ceremony-hero__front, .ceremony-hero__back { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.ceremony-hero__front { transform: rotateY(180deg); }
+.ceremony-hero .tarot-card, .ceremony-hero .tarot-card-back, .ceremony-hero .tarot-card__art { width: 100%; height: 100%; aspect-ratio: auto; }
+.ceremony-hero .tarot-card-back { gap: 12px; }
+.ceremony-hero .tarot-card-back__moon { font-size: clamp(32px, 7vh, 70px); }
+.ceremony-hero .tarot-card-back small { font-size: 7px; letter-spacing: .16em; }
+.ceremony-stack { position: absolute; inset: 0; z-index: -1; transition: opacity 250ms; }
+.ceremony-stack--one { transform: translate(-9px, 3px) rotate(-9deg); }
+.ceremony-stack--two { transform: translate(9px, 3px) rotate(9deg); }
+.ceremony-stage--choose .ceremony-stack, .ceremony-stage--flipping .ceremony-stack, .ceremony-stage--complete .ceremony-stack { opacity: 0; }
+.is-shuffling .ceremony-stack--one { animation: ceremony-shuffle-left 700ms ease-in-out 2; }
+.is-shuffling .ceremony-stack--two { animation: ceremony-shuffle-right 700ms ease-in-out 2; }
+.is-shuffling .ceremony-hero__inner { animation: ceremony-shuffle-center 700ms ease-in-out 2; }
+.ceremony-stage--flipping .ceremony-orbits { animation: ceremony-reveal-glow 1200ms ease-out; }
+.ceremony-hero-caption { position: absolute; bottom: 0; left: 12px; right: 12px; height: 40px; display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; overflow: hidden; }
+.ceremony-hero-caption strong { color: var(--gold); font-family: "Songti SC", serif; font-size: 16px; font-weight: 500; }
+.ceremony-hero-caption small { width: 100%; color: var(--muted); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ceremony-deck { display: grid; grid-template-rows: 30px minmax(0, 1fr); min-width: 0; min-height: 0; opacity: 1; transition: opacity 450ms ease, transform 450ms ease; }
+.ceremony-deck.is-veiled { opacity: .12; pointer-events: none; transform: translateY(18px); }
+.ceremony-deck__heading { display: flex; align-items: center; gap: 10px; padding: 0 14px; color: var(--gold); font-size: 11px; }
+.ceremony-deck__heading small { color: var(--faint); font-size: 10px; }
+.ceremony-deck__heading > div { display: flex; margin-left: auto; }
+.ceremony-modal .ceremony-deck__heading .icon-button { width: 32px; height: 30px; flex-basis: 32px; }
+.ceremony-deck__rail { position: relative; display: flex; align-items: center; overflow-x: auto; overflow-y: hidden; min-width: 0; padding: 22px 24px 10px; overscroll-behavior: contain; touch-action: pan-x; scrollbar-width: thin; scrollbar-color: #80614566 transparent; user-select: none; cursor: grab; }
+.ceremony-deck__rail:active { cursor: grabbing; }
+.ceremony-slot { position: relative; flex: 0 0 86px; height: 116px; margin-left: -40px; padding: 0; border: 0; border-radius: 7px; background: transparent; transform: rotate(-5deg); transition: transform 220ms ease, opacity 220ms ease; touch-action: pan-x; }
+.ceremony-slot:first-child { margin-left: 0; }
+.ceremony-slot > .tarot-card-back { width: 100%; height: 100%; border-radius: 7px; box-shadow: inset 0 0 0 4px #100b1a, inset 0 0 0 5px #e7c98f88, -8px 4px 14px #0006; gap: 6px; }
+.ceremony-slot .tarot-card-back__moon { font-size: 32px; }
+.ceremony-slot .tarot-card-back small { font-size: 5px; letter-spacing: .1em; }
+.ceremony-slot .tarot-card-back__ring { width: 65%; }
+.ceremony-slot > span { position: absolute; top: 7px; left: 9px; color: var(--gold); font-size: 9px; }
+.ceremony-slot > span svg { width: 13px; height: 13px; }
+.ceremony-slot.is-focused { z-index: 2; transform: translateY(-17px) rotate(0); }
+.ceremony-slot.is-focused > .tarot-card-back { border-color: #ffe4a2; box-shadow: inset 0 0 0 4px #100b1a, inset 0 0 0 5px #f5d896, 0 0 20px #e7c98f66; }
+.ceremony-slot.is-used { transform: translateY(22px); opacity: .18; }
+.ceremony-slot:disabled:not(.is-used) { opacity: .85; }
+.ceremony-slot:focus-visible { z-index: 3; outline: 2px solid var(--gold); outline-offset: 3px; }
+.ceremony-tray { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 12px; overflow-x: auto; overflow-y: hidden; overscroll-behavior: contain; touch-action: pan-x; border-top: 1px solid #e7c98f20; background: #0d0913a0; scrollbar-width: thin; }
+.ceremony-tray__empty { display: flex; align-items: center; justify-content: center; width: 100%; gap: 8px; color: var(--faint); font-size: 10px; white-space: nowrap; }
+.ceremony-tray__empty svg { width: 15px; }
+.ceremony-tray__card { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; height: 48px; padding: 3px 10px 3px 3px; border: 1px solid #a989e829; border-radius: 8px; background: #a989e80a; color: var(--muted); text-align: left; }
+.ceremony-tray__card .tarot-card { height: 40px; width: 25px; border-radius: 3px; }
+.ceremony-tray__card .tarot-card__art { height: 100%; aspect-ratio: auto; }
+.ceremony-tray__card > span { display: grid; font-size: 10px; }
+.ceremony-tray__card small { color: var(--gold); font-size: 8px; }
+.ceremony-tray__card.is-current { border-color: #e7c98f88; background: #e7c98f0b; }
+.ceremony-footer { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; min-width: 0; }
+.ceremony-hint { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.ceremony-footer__actions { display: flex; align-items: center; gap: 8px; }
+.ceremony-footer__actions > .button { width: 210px; min-height: 46px; padding-inline: 12px; white-space: nowrap; }
+.ceremony-error { position: absolute; z-index: 5; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 20px; background: #0b0812e8; }
+@keyframes ceremony-shuffle-left { 50% { transform: translate(-65%, 8%) rotate(-24deg); } }
+@keyframes ceremony-shuffle-right { 50% { transform: translate(65%, -8%) rotate(24deg); } }
+@keyframes ceremony-shuffle-center { 50% { transform: translateY(-6%) rotate(7deg); } }
+@keyframes ceremony-reveal-glow { 0% { opacity: .35; transform: scale(.85); } 40% { opacity: 1; filter: brightness(2); } 100% { opacity: 1; transform: scale(1); } }
+@media (max-width: 760px) {
+  .modal.ceremony-modal { height: calc(100svh - 28px); grid-template-rows: 56px 32px minmax(0, 1fr) 88px; gap: 8px; padding: 12px; }
+  .ceremony-modal .modal__header h2 { font-size: 18px; }
+  .ceremony-stage { grid-template-rows: minmax(0, 1fr) 160px 58px; gap: 4px; border-radius: 14px; }
+  .ceremony-deck { grid-template-rows: 28px minmax(0, 1fr); }
+  .ceremony-slot { flex-basis: 78px; height: 104px; margin-left: -32px; }
+  .ceremony-deck__rail { padding: 20px 18px 8px; }
+  .ceremony-hero-caption strong { font-size: 14px; }
+  .ceremony-footer { grid-template-columns: minmax(0, 1fr); grid-template-rows: 32px 48px; gap: 8px; }
+  .ceremony-hint { -webkit-line-clamp: 2; font-size: 11px; text-align: center; }
+  .ceremony-footer__actions { width: 100%; }
+  .ceremony-footer__actions > .button { width: auto; flex: 1; height: 46px; }
+  .ceremony-tray__card { height: 44px; }
+  .ceremony-tray__card .tarot-card { height: 36px; width: 23px; }
+}
+@media (max-height: 740px) and (orientation: portrait) {
+  .modal.ceremony-modal { grid-template-rows: 44px 28px minmax(0, 1fr) 76px; }
+  .ceremony-stage { grid-template-rows: minmax(0, 1fr) 130px 48px; }
+  .ceremony-slot { height: 80px; flex-basis: 66px; margin-left: -20px; }
+  .ceremony-slot .tarot-card-back small { display: none; }
+  .ceremony-footer { grid-template-rows: 24px 44px; }
+  .ceremony-tray__card { height: 38px; }
+  .ceremony-tray__card .tarot-card { height: 30px; width: 19px; }
+}
+@media (max-height: 540px) and (orientation: landscape) {
+  .modal.ceremony-modal { height: calc(100svh - 24px); padding: 10px 16px; gap: 6px; grid-template-rows: 40px 28px minmax(0, 1fr) 48px; }
+  .ceremony-modal .modal__header .eyebrow { display: none; }
+  .ceremony-modal .modal__header h2 { margin: 0; font-size: 17px; }
+  .ceremony-stage { grid-template-columns: minmax(0, .8fr) minmax(0, 1.4fr); grid-template-rows: minmax(0, 1fr) 48px; }
+  .ceremony-altar { grid-row: 1 / 3; padding-bottom: 40px; }
+  .ceremony-hero-caption { height: 34px; }
+  .ceremony-hero-caption strong { font-size: 12px; }
+  .ceremony-deck { grid-column: 2; grid-row: 1; }
+  .ceremony-tray { grid-column: 2; grid-row: 2; }
+  .ceremony-slot { height: 80px; flex-basis: 66px; margin-left: -20px; }
+  .ceremony-footer { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 1fr; }
+  .ceremony-footer__actions > .button { width: 200px; flex: none; }
+  .ceremony-hint { text-align: left; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ceremony-hero__inner { transition: none !important; }
+  .ceremony-stage--flipping .ceremony-orbits, .is-shuffling .ceremony-stack, .is-shuffling .ceremony-hero__inner { animation: none; }
+}
