@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import json
+from time import monotonic
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -9,6 +10,7 @@ from pydantic import ValidationError
 from . import auth, db, llm, tarot
 from .context import build_context
 from .schemas import Plan, Reading, ReadingOverview, Rename, SendMessage
+from .streaming import readable_preview, reading_preview
 
 router = APIRouter(prefix="/api/conversations")
 _busy = set()
@@ -26,7 +28,7 @@ def public_conversation(row):
 
 
 def public_message(row):
-    return {**{key: row[key] for key in ("id", "role", "content", "created_at", "draw_id", "kind")},
+    return {**{key: row[key] for key in ("id", "role", "content", "created_at", "draw_id", "kind", "reasoning")},
             "images": json.loads(row["images"])}
 
 
@@ -50,11 +52,11 @@ def default_model():
     return row
 
 
-def insert_message(connection, conversation_id, role, content, images=None, draw_id=None, kind="chat"):
-    message = dict(id=db.uid(), role=role, content=content, images=images or [], draw_id=draw_id, kind=kind, created_at=db.now())
-    connection.execute("""INSERT INTO messages (id,conversation_id,role,content,images,draw_id,kind,created_at)
-                          VALUES (?,?,?,?,?,?,?,?)""",
-                       (message["id"], conversation_id, role, content, db.dumps(message["images"]), draw_id, kind, message["created_at"]))
+def insert_message(connection, conversation_id, role, content, images=None, draw_id=None, kind="chat", reasoning=""):
+    message = dict(id=db.uid(), role=role, content=content, images=images or [], draw_id=draw_id, kind=kind, reasoning=reasoning, created_at=db.now())
+    connection.execute("""INSERT INTO messages (id,conversation_id,role,content,images,draw_id,kind,created_at,reasoning)
+                          VALUES (?,?,?,?,?,?,?,?,?)""",
+                       (message["id"], conversation_id, role, content, db.dumps(message["images"]), draw_id, kind, message["created_at"], reasoning))
     connection.execute("UPDATE conversations SET updated_at=? WHERE id=?", (message["created_at"], conversation_id))
     return message
 
@@ -85,7 +87,8 @@ def stream_response(conversation_id, iterator):
                 pending.cancel()
                 with contextlib.suppress(asyncio.CancelledError, StopAsyncIteration):
                     await pending
-            await iterator.aclose()
+            if pending is None or pending.done():
+                await iterator.aclose()
 
     class GuardedResponse(StreamingResponse):
         async def __call__(self, scope, receive, send):
@@ -97,17 +100,45 @@ def stream_response(conversation_id, iterator):
     return GuardedResponse(with_heartbeat(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
-async def structured(model, user, purpose, messages, schema, card_ids=None):
+async def structured(model, user, purpose, messages, schema, trace, card_ids=None, previous_cards=None, include_overview=True):
+    def preview_event(text):
+        if purpose == "reading":
+            return "reading_preview", reading_preview(text, card_ids or [], previous_cards or [], include_overview)
+        return "preview", {"text": readable_preview(text)}
+
     for attempt in range(2):
-        text = await llm.complete(model, user, purpose, messages)
+        text, previous_preview = "", None
+        last_preview_at = 0.0
+        yield preview_event("")
+        if trace:
+            separator = "\n\n——重新生成——\n\n" if attempt else "\n\n——下一阶段——\n\n"
+            trace.append(separator)
+            yield "reasoning", {"text": separator}
+        async for chunk in llm.stream(model, user, purpose, messages, include_reasoning=True):
+            if chunk["type"] == "reasoning":
+                trace.append(chunk["text"])
+                yield "reasoning", {"text": chunk["text"]}
+            else:
+                text += chunk["text"]
+                if monotonic() - last_preview_at >= 0.06:
+                    last_preview_at = monotonic()
+                    preview = preview_event(text)
+                    if preview != previous_preview:
+                        previous_preview = preview
+                        yield preview
+        preview = preview_event(text)
+        if preview != previous_preview:
+            yield preview
         try:
             value = schema.model_validate(llm.extract_json(text))
             if card_ids is not None and [card.card_id for card in value.cards] != card_ids:
                 raise ValueError("牌序不匹配")
-            return value
+            yield "result", value
+            return
         except (ValueError, ValidationError):
             if attempt:
                 raise llm.ModelError("模型未能返回完整且对应牌面的解析，请重试或联系管理员调整模型／输出预算")
+            yield "status", {"text": "正在重新整理解读格式…"}
             messages = [*messages, {"role": "user", "content": "上一轮结构未通过校验。请重新生成完整JSON，严格遵守要求，字段齐全；如在解读，cards数量、card_id及顺序必须与固定结果完全一致。"}]
 
 
@@ -165,7 +196,12 @@ async def send_message(conversation_id: str, body: SendMessage, user=Depends(aut
             yield sse("user_message", message)
             yield sse("status", {"text": "正在聆听你的祈愿，整理星象与牌阵…"})
             context = await build_context(conversation_id, model, user, tarot.PLAN_PROMPT)
-            plan = await structured(model, user, "planning", context, Plan)
+            trace = []
+            async for event, value in structured(model, user, "planning", context, Plan, trace):
+                if event == "result":
+                    plan = value
+                else:
+                    yield sse(event, value)
             if plan.mode == "draw":
                 draw_id = db.uid()
                 with db.connect() as connection:
@@ -173,18 +209,26 @@ async def send_message(conversation_id: str, body: SendMessage, user=Depends(aut
                                           VALUES (?,?,?,?,?,?,?,?)""",
                                        (draw_id, conversation_id, plan.question, plan.opening, plan.spread_name,
                                         db.dumps(plan.positions), int(plan.upright_only), db.now()))
-                    message = insert_message(connection, conversation_id, "assistant", plan.opening, draw_id=draw_id, kind="proposal")
+                    message = insert_message(connection, conversation_id, "assistant", plan.opening, draw_id=draw_id, kind="proposal", reasoning="".join(trace))
                 yield sse("message", message)
                 yield sse("draw", public_draw(db.one("SELECT * FROM draws WHERE id=?", (draw_id,))))
             else:
                 yield sse("status", {"text": "星帷正在回应…"})
+                yield sse("preview", {"text": ""})
+                if trace:
+                    trace.append("\n\n——回应——\n\n")
+                    yield sse("reasoning", {"text": trace[-1]})
                 context = await build_context(conversation_id, model, user, tarot.VOICE)
                 parts = []
-                async for text in llm.stream(model, user, "chat", context):
-                    parts.append(text)
-                    yield sse("delta", {"text": text})
+                async for chunk in llm.stream(model, user, "chat", context, include_reasoning=True):
+                    if chunk["type"] == "reasoning":
+                        trace.append(chunk["text"])
+                        yield sse("reasoning", {"text": chunk["text"]})
+                    else:
+                        parts.append(chunk["text"])
+                        yield sse("delta", {"text": chunk["text"]})
                 with db.connect() as connection:
-                    message = insert_message(connection, conversation_id, "assistant", "".join(parts))
+                    message = insert_message(connection, conversation_id, "assistant", "".join(parts), reasoning="".join(trace))
                 yield sse("message", message)
             yield sse("done", {})
         except llm.ModelError as exc:
@@ -234,7 +278,8 @@ async def interpret(conversation_id: str, draw_id: str, user=Depends(auth.curren
                     yield sse("message", public_message(saved))
             else:
                 batch_size = max(1, min(6, model["max_output_tokens"] // 1200))
-                all_cards, partials = [], []
+                multiple_batches = len(draw["cards"]) > batch_size
+                all_cards, partials, trace = [], [], []
                 for start in range(0, len(draw["cards"]), batch_size):
                     cards = draw["cards"][start:start + batch_size]
                     yield sse("status", {"text": f"正在解读第 {start + 1}—{start + len(cards)} 张牌，聆听牌面之间的低语…"})
@@ -242,8 +287,12 @@ async def interpret(conversation_id: str, draw_id: str, user=Depends(auth.curren
                              "positions": [card["position"] for card in cards], "cards": cards}
                     context = await build_context(conversation_id, model, user, tarot.READING_PROMPT,
                                                   "本轮只解读以下固定牌面；cards只含本轮ID，保持顺序：\n" + db.dumps(fixed))
-                    part = (await structured(model, user, "reading", context, Reading,
-                                             [card["id"] for card in cards])).model_dump()
+                    async for event, value in structured(model, user, "reading", context, Reading, trace,
+                                                         [card["id"] for card in cards], all_cards, not multiple_batches):
+                        if event == "result":
+                            part = value.model_dump()
+                        else:
+                            yield sse(event, value)
                     all_cards.extend(part["cards"])
                     partials.append(part)
                 if len(partials) == 1:
@@ -256,11 +305,15 @@ async def interpret(conversation_id: str, draw_id: str, user=Depends(auth.curren
                                         "position": card["position"], "meaning": analysis["interpretation"]}
                                        for card, analysis in zip(draw["cards"], all_cards)]}
                     context = await build_context(conversation_id, model, user, overview_prompt, db.dumps(facts))
-                    overview = (await structured(model, user, "reading", context, ReadingOverview)).model_dump()
+                    async for event, value in structured(model, user, "reading", context, ReadingOverview, trace, previous_cards=all_cards):
+                        if event == "result":
+                            overview = value.model_dump()
+                        else:
+                            yield sse(event, value)
                     reading = {"cards": all_cards, **overview}
                 with db.connect() as connection:
                     connection.execute("UPDATE draws SET status='interpreted',reading=? WHERE id=?", (db.dumps(reading), draw_id))
-                    message = insert_message(connection, conversation_id, "assistant", reading_text(draw, reading), draw_id=draw_id, kind="reading")
+                    message = insert_message(connection, conversation_id, "assistant", reading_text(draw, reading), draw_id=draw_id, kind="reading", reasoning="".join(trace))
                 draw.update(status="interpreted", reading=reading)
                 yield sse("draw", draw)
                 yield sse("message", message)

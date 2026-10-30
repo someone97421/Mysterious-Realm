@@ -94,25 +94,34 @@ def request_payload(model, messages):
                 converted.append({"role": role, "content": parts})
     payload = {"model": model["model_id"], "stream": True}
     effort = model["reasoning_effort"]
+    custom_field = model.get("reasoning_field", "")
     output = model["max_output_tokens"]
     if schema == "chat_completions":
         payload["messages"] = ([{"role": "system", "content": system}] if system else []) + converted
         payload["stream_options"] = {"include_usage": True}
         token_key = "max_completion_tokens" if re.match(r"^(o[1-9]|gpt-5)", model["model_id"]) else "max_tokens"
         payload[token_key] = output
-        if effort != "none":
+        if effort != "none" and not custom_field:
             payload["reasoning_effort"] = effort
     elif schema == "responses":
         payload.update(instructions=system, input=converted, max_output_tokens=output, store=False)
-        if effort != "none":
-            payload["reasoning"] = {"effort": effort}
+        if effort != "none" and not custom_field:
+            payload["reasoning"] = {"effort": effort, "summary": "auto"}
     else:
         payload.update(messages=converted, max_tokens=output)
         if system:
             payload["system"] = system
-        if effort != "none":
-            budget = {"low": 1024, "medium": 4096, "high": 8192, "xhigh": 16384}[effort]
-            payload["thinking"] = {"type": "enabled", "budget_tokens": min(budget, output - 1024)}
+        if effort != "none" and not custom_field:
+            budgets = {"low": 1024, "medium": 4096, "high": 8192, "xhigh": 16384, "max": 32768}
+            if effort not in budgets:
+                raise ModelError("此 Anthropic 思考级别需要配置自定义请求字段")
+            payload["thinking"] = {"type": "enabled", "budget_tokens": min(budgets[effort], output - 1024)}
+    if effort != "none" and custom_field:
+        target = payload
+        keys = custom_field.split(".")
+        for key in keys[:-1]:
+            target = target.setdefault(key, {})
+        target[keys[-1]] = effort
     return payload
 
 
@@ -170,7 +179,7 @@ async def sse_data(response):
         yield "\n".join(data_lines)
 
 
-async def stream(model, user, purpose, messages):
+async def stream(model, user, purpose, messages, *, include_reasoning=False):
     payload = request_payload(model, messages)
     headers = {"Content-Type": "application/json", "Accept": "text/event-stream"}
     key = decrypt_key(model["api_key"])
@@ -181,7 +190,7 @@ async def stream(model, user, purpose, messages):
             headers["x-api-key"] = key
     elif key:
         headers["Authorization"] = f"Bearer {key}"
-    usage, output, accepted, ended = Usage(), [], False, False
+    usage, output, reasoning_output, accepted, ended = Usage(), [], [], False, False
     try:
         async with httpx.AsyncClient(timeout=httpx.Timeout(180, connect=20)) as client:
             async with client.stream("POST", endpoint(model["base_url"], schema), headers=headers, json=payload) as response:
@@ -202,7 +211,7 @@ async def stream(model, user, purpose, messages):
                         raise ModelError("模型流式响应格式异常，请重试") from exc
                     if event.get("error") or event.get("type") == "error":
                         raise ModelError("模型在生成过程中返回错误，请检查服务额度和配置")
-                    text = ""
+                    text, reasoning = "", ""
                     if schema == "chat_completions":
                         usage.update(event.get("usage"), schema)
                         choices = event.get("choices") or []
@@ -213,11 +222,15 @@ async def stream(model, user, purpose, messages):
                                 raise ModelError("模型输出被截断或过滤，请调整最大输出长度后重试")
                             if reason:
                                 ended = True
-                            text = (choice.get("delta") or {}).get("content") or ""
+                            delta = choice.get("delta") or {}
+                            text = delta.get("content") or ""
+                            reasoning = delta.get("reasoning_content") or delta.get("reasoning") or ""
                     elif schema == "responses":
                         kind = event.get("type", "")
                         if kind == "response.output_text.delta":
                             text = event.get("delta", "")
+                        elif kind in ("response.reasoning_summary_text.delta", "response.reasoning_text.delta"):
+                            reasoning = event.get("delta", "")
                         if kind in ("response.completed", "response.incomplete", "response.failed"):
                             result = event.get("response", {})
                             usage.update(result.get("usage"), schema)
@@ -230,15 +243,21 @@ async def stream(model, user, purpose, messages):
                             usage.update(event.get("message", {}).get("usage"), schema)
                         elif kind == "content_block_delta" and event.get("delta", {}).get("type") == "text_delta":
                             text = event["delta"].get("text", "")
+                        elif kind == "content_block_delta" and event.get("delta", {}).get("type") == "thinking_delta":
+                            reasoning = event["delta"].get("thinking", "")
                         elif kind == "message_delta":
                             usage.update(event.get("usage"), schema)
                             if event.get("delta", {}).get("stop_reason") == "max_tokens":
                                 raise ModelError("模型输出达到上限，请增大输出预算后重试")
                         elif kind == "message_stop":
                             ended = True
+                    if isinstance(reasoning, str) and reasoning:
+                        reasoning_output.append(reasoning)
+                        if include_reasoning:
+                            yield {"type": "reasoning", "text": reasoning}
                     if isinstance(text, str) and text:
                         output.append(text)
-                        yield text
+                        yield {"type": "text", "text": text} if include_reasoning else text
                 if not ended:
                     raise ModelError("与模型的连接提前中断，请重试")
                 if not output:
@@ -249,7 +268,7 @@ async def stream(model, user, purpose, messages):
         raise ModelError("无法连接模型服务，请检查接入点和网络") from exc
     finally:
         if accepted:
-            record_usage(model, user, purpose, usage, messages, "".join(output))
+            record_usage(model, user, purpose, usage, messages, "".join(reasoning_output + output))
 
 
 async def complete(model, user, purpose, messages):

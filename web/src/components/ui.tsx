@@ -9,10 +9,11 @@ import {
   type ButtonHTMLAttributes,
   type HTMLAttributes,
   type ReactNode,
-  useEffect,
+  useLayoutEffect,
   useId,
   useRef,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { cx } from '../utils';
 
 export function Brand({ compact = false }: { compact?: boolean }) {
@@ -102,53 +103,144 @@ interface ModalProps {
   closeDisabled?: boolean;
 }
 
+const modalStack: HTMLDivElement[] = [];
+let restorePage: (() => void) | undefined;
+const inertSnapshot = new Map<HTMLElement, boolean>();
+
+function syncModalLayers() {
+  const top = modalStack[modalStack.length - 1];
+  for (const child of Array.from(document.body.children)) {
+    if (!(child instanceof HTMLElement)) continue;
+    if (!inertSnapshot.has(child)) inertSnapshot.set(child, child.inert);
+    child.inert = child !== top;
+  }
+  modalStack.forEach((layer, index) => { layer.style.zIndex = String(100 + index); });
+}
+
+function lockModalPage() {
+  const body = document.body;
+  const root = document.documentElement;
+  const x = window.scrollX;
+  const y = window.scrollY;
+  const properties = ['position', 'top', 'left', 'width', 'overflow', 'padding-right'] as const;
+  const saved = properties.map((name) => [name, body.style.getPropertyValue(name), body.style.getPropertyPriority(name)] as const);
+  const rootOverflow = root.style.overflow;
+  const gutter = Math.max(0, window.innerWidth - root.clientWidth);
+  const padding = parseFloat(getComputedStyle(body).paddingRight) || 0;
+  Object.assign(body.style, { position: 'fixed', top: `${-y}px`, left: `${-x}px`, width: '100%', overflow: 'hidden', paddingRight: `${padding + gutter}px` });
+  root.style.overflow = 'hidden';
+  return () => {
+    saved.forEach(([name, value, priority]) => {
+      if (value) body.style.setProperty(name, value, priority);
+      else body.style.removeProperty(name);
+    });
+    root.style.overflow = rootOverflow;
+    const behavior = root.style.scrollBehavior;
+    root.style.scrollBehavior = 'auto';
+    window.scrollTo(x, y);
+    root.style.scrollBehavior = behavior;
+  };
+}
+
 export function Modal({ title, eyebrow, children, onClose, className, closeDisabled = false }: ModalProps) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
+  const layerRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
   const disabledRef = useRef(closeDisabled);
   closeRef.current = onClose;
   disabledRef.current = closeDisabled;
 
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    const frame = requestAnimationFrame(() => {
-      const first = panelRef.current?.querySelector<HTMLElement>(
-        'input:not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]), [tabindex="0"]',
-      );
-      (first ?? panelRef.current)?.focus();
-    });
+  useLayoutEffect(() => {
+    const layer = layerRef.current;
+    const panel = panelRef.current;
+    if (!layer || !panel) return;
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    if (!modalStack.length) restorePage = lockModalPage();
+    modalStack.push(layer);
+    syncModalLayers();
+    const isTop = () => modalStack[modalStack.length - 1] === layer;
+    const focusable = () => Array.from(panel.querySelectorAll<HTMLElement>(
+      'input:not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+    )).filter((element) => element.getClientRects().length > 0 && !element.closest('[inert]'));
+    panel.focus({ preventScroll: true });
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !disabledRef.current) closeRef.current();
-      if (event.key !== 'Tab' || !panelRef.current) return;
-      const focusable = Array.from(panelRef.current.querySelectorAll<HTMLElement>(
-        'input:not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]), [href], [tabindex="0"]',
-      )).filter((element) => element.offsetParent !== null);
-      if (!focusable.length) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
+      if (!isTop()) return;
+      if (event.key === 'Escape') {
         event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
+        event.stopImmediatePropagation();
+        if (!disabledRef.current) closeRef.current();
+      }
+      if (event.key !== 'Tab') return;
+      const elements = focusable();
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+      if (!first) {
         event.preventDefault();
-        first.focus();
+        panel.focus({ preventScroll: true });
+      } else if (event.shiftKey && (document.activeElement === first || !elements.includes(document.activeElement as HTMLElement))) {
+        event.preventDefault();
+        last.focus({ preventScroll: true });
+        const bounds = last.getBoundingClientRect();
+        const viewport = panel.getBoundingClientRect();
+        const top = viewport.top + (panel.querySelector('header')?.offsetHeight ?? 0) + 12;
+        if (bounds.bottom > viewport.bottom) panel.scrollTop += bounds.bottom - viewport.bottom + 12;
+        else if (bounds.top < top) panel.scrollTop -= top - bounds.top;
+      } else if (!event.shiftKey && (document.activeElement === last || !elements.includes(document.activeElement as HTMLElement))) {
+        event.preventDefault();
+        first.focus({ preventScroll: true });
+        panel.scrollTop = 0;
       }
     };
-    document.addEventListener('keydown', onKeyDown);
+    const onFocus = (event: FocusEvent) => {
+      if (isTop() && !panel.contains(event.target as Node)) panel.focus({ preventScroll: true });
+    };
+    let touchY = 0;
+    const onTouchStart = (event: TouchEvent) => { touchY = event.touches[0]?.clientY ?? 0; };
+    const onTouchMove = (event: TouchEvent) => {
+      if (!isTop() || event.touches.length !== 1) return;
+      const nextY = event.touches[0].clientY;
+      const delta = nextY - touchY;
+      touchY = nextY;
+      let node = event.target instanceof Element ? (event.target instanceof HTMLElement ? event.target : event.target.parentElement) : null;
+      while (node && panel.contains(node)) {
+        const overflow = getComputedStyle(node).overflowY;
+        if (/(auto|scroll)/.test(overflow) && node.scrollHeight > node.clientHeight &&
+          ((delta > 0 && node.scrollTop > 0) || (delta < 0 && node.scrollTop + node.clientHeight < node.scrollHeight - 1))) return;
+        node = node.parentElement;
+      }
+      if (event.cancelable) event.preventDefault();
+    };
+    document.addEventListener('keydown', onKeyDown, true);
+    document.addEventListener('focusin', onFocus);
+    layer.addEventListener('touchstart', onTouchStart, { passive: true });
+    layer.addEventListener('touchmove', onTouchMove, { passive: false });
     return () => {
-      cancelAnimationFrame(frame);
-      document.body.style.overflow = originalOverflow;
-      document.removeEventListener('keydown', onKeyDown);
-      previous?.focus();
+      document.removeEventListener('keydown', onKeyDown, true);
+      document.removeEventListener('focusin', onFocus);
+      layer.removeEventListener('touchstart', onTouchStart);
+      layer.removeEventListener('touchmove', onTouchMove);
+      const wasTop = isTop();
+      modalStack.splice(modalStack.indexOf(layer), 1);
+      layer.inert = inertSnapshot.get(layer) ?? false;
+      inertSnapshot.delete(layer);
+      if (modalStack.length) syncModalLayers();
+      else {
+        inertSnapshot.forEach((inert, element) => { element.inert = inert; });
+        inertSnapshot.clear();
+        restorePage?.();
+        restorePage = undefined;
+      }
+      if (wasTop) {
+        const target = previous?.isConnected && !previous.closest('[inert]') ? previous : modalStack[modalStack.length - 1]?.querySelector<HTMLElement>('[role="dialog"]');
+        target?.focus({ preventScroll: true });
+      }
     };
   }, []);
 
-  return (
-    <div className="modal-backdrop" onMouseDown={(event) => {
-      if (event.target === event.currentTarget && !closeDisabled) onClose();
+  return createPortal(
+    <div ref={layerRef} className="modal-backdrop" onMouseDown={(event) => {
+      if (event.target === event.currentTarget && modalStack[modalStack.length - 1] === layerRef.current && !closeDisabled) onClose();
     }}>
       <div
         ref={panelRef}
@@ -164,7 +256,8 @@ export function Modal({ title, eyebrow, children, onClose, className, closeDisab
         </header>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

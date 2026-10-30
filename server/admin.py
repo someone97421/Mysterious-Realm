@@ -15,6 +15,7 @@ router = APIRouter(prefix="/api/admin", dependencies=[Depends(auth.administrator
 
 def model_public(row):
     result = {key: value for key, value in row.items() if key != "api_key"}
+    result.setdefault("reasoning_field", "")
     result.update(has_api_key=bool(row["api_key"]), supports_images=bool(row["supports_images"]), is_default=bool(row["is_default"]))
     return result
 

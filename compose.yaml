@@ -2,11 +2,11 @@ services:
   tarot:
     build: .
     ports:
-      - "${TAROT_PORT:-8000}:8000"
+      - "${TAROT_PORT:-18763}:8000"
     environment:
       TAROT_DATA_DIR: /app/data
       TAROT_COOKIE_SECURE: "${TAROT_COOKIE_SECURE:-false}"
     volumes:
-      - ./data:/app/data
+      - "${TAROT_HOST_DATA_DIR:-/Volumes/Nas共享区/Docker-Mini-M6/tarot master}:/app/data"
     init: true
     stop_grace_period: 20s

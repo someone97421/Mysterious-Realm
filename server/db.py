@@ -70,7 +70,8 @@ def initialize():
             id TEXT PRIMARY KEY, name TEXT NOT NULL, provider TEXT NOT NULL,
             base_url TEXT NOT NULL, model_id TEXT NOT NULL, api_key TEXT NOT NULL,
             schema_type TEXT NOT NULL, reasoning_effort TEXT NOT NULL DEFAULT 'none',
-            supports_images INTEGER NOT NULL DEFAULT 0, context_window INTEGER NOT NULL,
+            reasoning_field TEXT NOT NULL DEFAULT '', supports_images INTEGER NOT NULL DEFAULT 0,
+            context_window INTEGER NOT NULL,
             compression_threshold REAL NOT NULL, max_output_tokens INTEGER NOT NULL,
             is_default INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL
         );
@@ -90,6 +91,7 @@ def initialize():
             seq INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL UNIQUE,
             conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
             role TEXT NOT NULL, content TEXT NOT NULL, images TEXT NOT NULL DEFAULT '[]',
+            reasoning TEXT NOT NULL DEFAULT '',
             draw_id TEXT REFERENCES draws(id) ON DELETE SET NULL,
             kind TEXT NOT NULL DEFAULT 'chat', created_at TEXT NOT NULL
         );
@@ -109,3 +111,10 @@ def initialize():
         );
         CREATE INDEX IF NOT EXISTS usage_created ON usage(created_at);
         """)
+
+        model_columns = {row["name"] for row in db.execute("PRAGMA table_info(models)").fetchall()}
+        if "reasoning_field" not in model_columns:
+            db.execute("ALTER TABLE models ADD COLUMN reasoning_field TEXT NOT NULL DEFAULT ''")
+        message_columns = {row["name"] for row in db.execute("PRAGMA table_info(messages)").fetchall()}
+        if "reasoning" not in message_columns:
+            db.execute("ALTER TABLE messages ADD COLUMN reasoning TEXT NOT NULL DEFAULT ''")

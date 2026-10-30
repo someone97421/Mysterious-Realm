@@ -1,3 +1,4 @@
+import re
 from typing import Literal
 from urllib.parse import urlparse
 
@@ -44,12 +45,30 @@ class ModelConfig(Input):
     model_id: str = Field(min_length=1, max_length=200)
     api_key: str = Field(default="", max_length=8192)
     schema_type: Literal["chat_completions", "responses", "anthropic"] = "chat_completions"
-    reasoning_effort: Literal["none", "low", "medium", "high", "xhigh"] = "none"
+    reasoning_effort: str = Field(default="none", min_length=1, max_length=32)
+    reasoning_field: str = Field(default="", max_length=128)
     supports_images: bool = False
     context_window: int = Field(default=128000, ge=4096, le=10000000)
     compression_threshold: float = Field(default=0.75, ge=0.3, le=0.95)
     max_output_tokens: int = Field(default=8192, ge=256, le=200000)
     is_default: bool = False
+
+    @field_validator("reasoning_field")
+    @classmethod
+    def valid_reasoning_field(cls, value):
+        if not value:
+            return value
+        parts = value.split(".")
+        reserved = {"model", "messages", "input", "system", "instructions", "stream", "stream_options", "store", "max_tokens", "max_completion_tokens", "max_output_tokens"}
+        if parts[0] in reserved or any(not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", part) for part in parts):
+            raise ValueError("思考字段需为合法点分路径，不能覆盖模型、消息或输出预算字段")
+        return value
+
+    @model_validator(mode="after")
+    def custom_reasoning_field(self):
+        if self.schema_type == "anthropic" and self.reasoning_effort not in {"none", "low", "medium", "high", "xhigh", "max"} and not self.reasoning_field:
+            raise ValueError("Anthropic 自定义推理强度需要填写思考字段路径")
+        return self
 
     @field_validator("base_url")
     @classmethod
@@ -63,7 +82,7 @@ class ModelConfig(Input):
     def token_budget(self):
         if self.max_output_tokens > self.context_window // 2:
             raise ValueError("最大输出长度不能超过上下文窗口的一半")
-        if self.schema_type == "anthropic" and self.reasoning_effort != "none" and self.max_output_tokens < 2048:
+        if self.schema_type == "anthropic" and self.reasoning_effort != "none" and not self.reasoning_field and self.max_output_tokens < 2048:
             raise ValueError("Anthropic 思考模式需要至少 2048 个输出 Token")
         return self
 

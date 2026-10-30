@@ -15,13 +15,14 @@ import {
   Stars,
   X,
 } from 'lucide-react';
-import { type FormEvent, type KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, type FormEvent, type KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { api, jsonBody, postSSE } from '../api';
-import type { AppConfig, Conversation, ConversationDetail, Draw, ImageAsset, Message, User } from '../types';
+import type { AppConfig, Conversation, ConversationDetail, Draw, ImageAsset, Message, Reading, User } from '../types';
 import { cx, errorMessage, formatDate, isAbortError } from '../utils';
 import { Ceremony } from './Ceremony';
 import { DrawPanel } from './DrawPanel';
 import { Brand, Button, Field, IconButton, InlineNotice, LoadingBlock, Modal } from './ui';
+import { Reasoning } from './Reasoning';
 
 interface Draft {
   text: string;
@@ -33,6 +34,8 @@ interface StreamState {
   kind: 'chat' | 'interpret';
   status: string;
   text: string;
+  reasoning: string;
+  reading?: Reading;
   error: string;
   drawId?: string;
 }
@@ -90,7 +93,8 @@ export function Chat({ user, config, onLogout, onAdmin }: {
   const requests = useRef(new Map<string, ActiveRequest>());
   const activeIdRef = useRef(activeId);
   const detailRequest = useRef<AbortController | null>(null);
-  const scrollAnchor = useRef<HTMLDivElement>(null);
+  const scrollContainer = useRef<HTMLDivElement>(null);
+  const followOutput = useRef(true);
   const fileInput = useRef<HTMLInputElement>(null);
   const lastChat = useRef<Record<string, { content: string; imageIds: string[] }>>({});
   activeIdRef.current = activeId;
@@ -159,6 +163,7 @@ export function Chat({ user, config, onLogout, onAdmin }: {
   }, []);
 
   const selectConversation = (id: string | null) => {
+    followOutput.current = true;
     setActiveId(id);
     setSidebarOpen(false);
     if (id) localStorage.setItem(storageKey, id);
@@ -201,7 +206,7 @@ export function Chat({ user, config, onLogout, onAdmin }: {
     setStreams((previous) => ({
       ...previous,
       [cid]: {
-        ...(previous[cid] ?? { active: false, kind: 'chat', status: '', text: '', error: '' }),
+        ...(previous[cid] ?? { active: false, kind: 'chat', status: '', text: '', reasoning: '', error: '' }),
         ...update,
       },
     }));
@@ -210,7 +215,7 @@ export function Chat({ user, config, onLogout, onAdmin }: {
   const removeTemporary = (cid: string, temporaryId: string, keepContent: boolean) => {
     mutateDetail(cid, (detail) => ({
       ...detail,
-      messages: detail.messages.filter((message) => message.id !== temporaryId || (keepContent && Boolean(message.content))),
+      messages: detail.messages.filter((message) => message.id !== temporaryId || (keepContent && Boolean(message.content || message.reasoning))),
     }));
   };
 
@@ -220,7 +225,8 @@ export function Chat({ user, config, onLogout, onAdmin }: {
     requests.current.set(cid, { controller, kind: 'chat' });
     lastChat.current[cid] = { content, imageIds };
     const temporaryId = `stream-assistant-${cid}`;
-    setStream(cid, { active: true, kind: 'chat', status: '正在连接星帷', text: '', error: '', drawId: undefined });
+    followOutput.current = true;
+    setStream(cid, { active: true, kind: 'chat', status: '正在连接星帷', text: '', reasoning: '', error: '', drawId: undefined });
     mutateDetail(cid, (detail) => ({
       ...detail,
       messages: [...detail.messages.filter((message) => message.id !== temporaryId), {
@@ -240,6 +246,15 @@ export function Chat({ user, config, onLogout, onAdmin }: {
             upsertMessage(cid, payload as Message, optimisticUserId);
           } else if (event === 'status') {
             setStream(cid, { status: (payload as { text: string }).text });
+          } else if (event === 'preview' || event === 'reasoning') {
+            const text = (payload as { text: string }).text;
+            mutateDetail(cid, (detail) => ({
+              ...detail,
+              messages: detail.messages.map((message) => message.id === temporaryId
+                ? event === 'preview' ? { ...message, content: text } : { ...message, reasoning: (message.reasoning ?? '') + text }
+                : message),
+            }));
+            if (event === 'preview') setStream(cid, { text });
           } else if (event === 'delta') {
             const text = (payload as { text: string }).text;
             mutateDetail(cid, (detail) => ({
@@ -325,12 +340,18 @@ export function Chat({ user, config, onLogout, onAdmin }: {
     if (requests.current.has(cid)) return;
     const controller = new AbortController();
     requests.current.set(cid, { controller, kind: 'interpret' });
-    setStream(cid, { active: true, kind: 'interpret', status: '正在聆听牌面', text: '', error: '', drawId: draw.id });
+    followOutput.current = true;
+    setStream(cid, { active: true, kind: 'interpret', status: '正在聆听牌面', text: '', reasoning: '', reading: undefined, error: '', drawId: draw.id });
     try {
       await postSSE(`/api/conversations/${cid}/draws/${draw.id}/interpret`, {}, {
         signal: controller.signal,
         onEvent: (event, payload) => {
           if (event === 'status') setStream(cid, { status: (payload as { text: string }).text });
+          if (event === 'reading_preview') setStream(cid, { reading: payload as Reading });
+          if (event === 'reasoning') {
+            const text = (payload as { text: string }).text;
+            setStreams((previous) => ({ ...previous, [cid]: { ...previous[cid], reasoning: (previous[cid]?.reasoning ?? '') + text } }));
+          }
           if (event === 'delta') {
             const text = (payload as { text: string }).text;
             setStreams((previous) => ({
@@ -347,7 +368,7 @@ export function Chat({ user, config, onLogout, onAdmin }: {
       setStream(cid, { active: false, status: '' });
       void refreshConversations();
     } catch (reason) {
-      if (isAbortError(reason)) setStream(cid, { active: false, status: '', error: '' });
+      if (isAbortError(reason)) setStream(cid, { active: false, status: '已停止生成，可继续解读', error: '' });
       else setStream(cid, { active: false, status: '', error: errorMessage(reason) });
     } finally {
       requests.current.delete(cid);
@@ -416,13 +437,17 @@ export function Chat({ user, config, onLogout, onAdmin }: {
   };
 
   useEffect(() => {
-    scrollAnchor.current?.scrollIntoView({ block: 'end' });
-  }, [activeId, currentDetail?.messages.length, currentDetail?.draws.length, currentStream?.text]);
+    const container = scrollContainer.current;
+    if (container && followOutput.current && !document.querySelector('[aria-modal="true"]')) {
+      container.scrollTop = container.scrollHeight;
+    }
+  }, [activeId, currentDetail?.messages.length, currentDetail?.draws.length, currentStream?.text, currentStream?.reading]);
 
   const timeline: TimelineItem[] = [];
   const linkedDraws = new Set<string>();
   currentDetail?.messages.forEach((message) => {
-    timeline.push({ key: `message-${message.id}`, type: 'message', message });
+    const hasReading = message.kind === 'reading' && currentDetail.draws.some((draw) => draw.id === message.draw_id && draw.reading);
+    if (!hasReading) timeline.push({ key: `message-${message.id}`, type: 'message', message });
     if (message.draw_id) {
       const draw = currentDetail.draws.find((item) => item.id === message.draw_id);
       if (draw && !linkedDraws.has(draw.id)) {
@@ -486,7 +511,10 @@ export function Chat({ user, config, onLogout, onAdmin }: {
             <span className="presence"><i />星帷在此</span>
           </div>
         </header>
-        <div className="chat-scroll">
+        <div className="chat-scroll" ref={scrollContainer} onScroll={(event) => {
+          const element = event.currentTarget;
+          followOutput.current = element.scrollHeight - element.scrollTop - element.clientHeight < 100;
+        }}>
           <div className="chat-timeline">
             {!activeId && (
               <section className="welcome">
@@ -506,25 +534,31 @@ export function Chat({ user, config, onLogout, onAdmin }: {
                 <div className="message__body">
                   <div className="message__meta"><strong>{item.message.role === 'assistant' ? '星帷' : user.display_name}</strong><time>{formatDate(item.message.created_at, true)}</time>{item.message.id.startsWith('stream-') && currentStream?.active && <span>{currentStream.status || '回应中'}</span>}</div>
                   {item.message.images.length > 0 && <div className="message__images">{item.message.images.map((image) => <a href={image.url} target="_blank" rel="noreferrer" key={image.id}><img src={image.url} alt={image.original_name} /></a>)}</div>}
+                  {item.message.role === 'assistant' && <Reasoning text={item.message.reasoning} active={item.message.id.startsWith('stream-') && currentStream?.active} />}
                   <div className="message__content">{item.message.content ? (item.message.role === 'assistant' ? safeAssistantText(item.message.content, item.message.kind === 'reading') : item.message.content) : (item.message.id.startsWith('stream-') ? <span className="thinking"><i /><i /><i /></span> : null)}</div>
                 </div>
               </article>
             ) : (
+              <Fragment key={item.key}>
+              <Reasoning
+                text={currentStream?.drawId === item.draw.id && !item.draw.reading ? currentStream.reasoning : currentDetail?.messages.find((message) => message.draw_id === item.draw.id && message.kind === 'reading')?.reasoning}
+                active={Boolean(currentStream?.active && currentStream.drawId === item.draw.id && !item.draw.reading)}
+              />
               <DrawPanel
                 key={item.key}
                 draw={item.draw}
                 onOpenCeremony={setCeremony}
                 onInterpret={(draw) => void interpret(draw)}
                 interpreting={Boolean(currentStream?.active && currentStream.drawId === item.draw.id)}
-                streamText={currentStream?.drawId === item.draw.id ? safeAssistantText(currentStream.text, true) : ''}
+                streamReading={currentStream?.drawId === item.draw.id ? currentStream.reading : undefined}
                 streamStatus={currentStream?.drawId === item.draw.id ? currentStream.status : ''}
                 error={currentStream?.drawId === item.draw.id ? currentStream.error : ''}
               />
+              </Fragment>
             ))}
             {currentStream?.error && currentStream.kind === 'chat' && (
               <div className="stream-error-row" role="alert"><span>{currentStream.error}</span><Button variant="ghost" onClick={() => { if (activeId && lastChat.current[activeId]) { const last = lastChat.current[activeId]; void runChatStream(activeId, last.content, last.imageIds); } }}>重新发送</Button><Button variant="ghost" onClick={() => activeId && void loadConversation(activeId, false)}>同步对话</Button></div>
             )}
-            <div ref={scrollAnchor} />
           </div>
         </div>
         <footer className="composer-wrap">

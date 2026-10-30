@@ -35,6 +35,7 @@ export interface Message {
   content: string;
   images: ImageAsset[];
   created_at: string;
+  reasoning?: string;
   draw_id?: string | null;
   kind?: 'chat' | 'reading' | 'proposal';
 }
@@ -87,7 +88,7 @@ export interface ConversationDetail {
 }
 
 export type SchemaType = 'chat_completions' | 'responses' | 'anthropic';
-export type ReasoningEffort = 'none' | 'low' | 'medium' | 'high' | 'xhigh';
+export type ReasoningEffort = string;
 
 export interface ModelConfig {
   id: string;
@@ -97,6 +98,7 @@ export interface ModelConfig {
   model_id: string;
   schema_type: SchemaType;
   reasoning_effort: ReasoningEffort;
+  reasoning_field: string;
   supports_images: boolean;
   context_window: number;
   compression_threshold: number;
@@ -113,6 +115,7 @@ export interface ModelPayload {
   model_id: string;
   schema_type: SchemaType;
   reasoning_effort: ReasoningEffort;
+  reasoning_field: string;
   supports_images: boolean;
   context_window: number;
   compression_threshold: number;
