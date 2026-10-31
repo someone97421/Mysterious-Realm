@@ -1,12 +1,14 @@
 services:
-  tarot:
+  xingwei:
     build: .
     ports:
-      - "${TAROT_PORT:-18763}:8000"
+      - "${XINGWEI_PORT:-${TAROT_PORT:-18763}}:8000"
     environment:
+      XINGWEI_DATA_DIR: /app/data
+      XINGWEI_COOKIE_SECURE: "${XINGWEI_COOKIE_SECURE:-${TAROT_COOKIE_SECURE:-false}}"
       TAROT_DATA_DIR: /app/data
       TAROT_COOKIE_SECURE: "${TAROT_COOKIE_SECURE:-false}"
     volumes:
-      - "${TAROT_HOST_DATA_DIR:-/Volumes/Nas共享区/Docker-Mini-M6/tarot master}:/app/data"
+      - "${XINGWEI_HOST_DATA_DIR:-${TAROT_HOST_DATA_DIR:-/Volumes/Nas共享区/Docker-Mini-M6/tarot master}}:/app/data"
     init: true
     stop_grace_period: 20s

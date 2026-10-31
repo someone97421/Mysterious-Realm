@@ -1,0 +1,91 @@
+{
+  "schema_version": "1.0.0",
+  "master": "SKILL.md",
+  "tool_catalog": "shared/tool-catalog.json",
+  "loading": {
+    "strategy": "on_demand",
+    "description": "按当前意图读取业务 Skill，再按业务索引读取必要参考知识；跨主题时组合而不重复基础资料。"
+  },
+  "skills": [
+    {
+      "id": "personality-reading",
+      "path": "skills/personality-reading/SKILL.md",
+      "triggers": ["本命盘", "性格结构", "天赋与成长", "自我认识"],
+      "tools": ["geocode", "natal-chart", "render-chart"],
+      "references": ["references/core.md", "references/communication.md"],
+      "collaborates_with": ["career-consultation", "love-consultation", "annual-forecast"]
+    },
+    {
+      "id": "love-consultation",
+      "path": "skills/love-consultation/SKILL.md",
+      "triggers": ["个人情感模式", "恋爱需求", "亲密边界", "单身情感咨询"],
+      "tools": ["geocode", "natal-chart", "transits", "render-chart"],
+      "references": ["references/core.md", "references/relationships.md", "references/timing.md", "references/communication.md"],
+      "collaborates_with": ["personality-reading", "relationship-reading", "daily-guidance"]
+    },
+    {
+      "id": "relationship-reading",
+      "path": "skills/relationship-reading/SKILL.md",
+      "triggers": ["双人合盘", "比较盘", "组合盘", "关系互动"],
+      "tools": ["geocode", "natal-chart", "synastry", "composite-chart", "render-chart"],
+      "references": ["references/core.md", "references/relationships.md", "references/communication.md"],
+      "collaborates_with": ["love-consultation", "annual-forecast"]
+    },
+    {
+      "id": "career-consultation",
+      "path": "skills/career-consultation/SKILL.md",
+      "triggers": ["事业方向", "职业发展", "工作模式", "职业转型"],
+      "tools": ["geocode", "natal-chart", "transits", "transit-calendar", "solar-return", "secondary-progressions", "render-chart"],
+      "references": ["references/core.md", "references/timing.md", "references/communication.md"],
+      "collaborates_with": ["personality-reading", "annual-forecast", "event-timing"]
+    },
+    {
+      "id": "finance-reading",
+      "path": "skills/finance-reading/SKILL.md",
+      "triggers": ["财富观", "资源模式", "财务主题", "价值与交换"],
+      "tools": ["geocode", "natal-chart", "transits", "transit-calendar", "solar-return", "render-chart"],
+      "references": ["references/core.md", "references/timing.md", "references/communication.md"],
+      "collaborates_with": ["personality-reading", "career-consultation", "annual-forecast"]
+    },
+    {
+      "id": "daily-guidance",
+      "path": "skills/daily-guidance/SKILL.md",
+      "triggers": ["日运势", "周运势", "月运势", "近期星象指引"],
+      "tools": ["geocode", "natal-chart", "transits", "transit-calendar", "sky-events", "sky-event-kinds", "horoscope", "astro-content", "render-chart"],
+      "references": ["references/core.md", "references/timing.md", "references/communication.md"],
+      "collaborates_with": ["annual-forecast", "love-consultation", "career-consultation"]
+    },
+    {
+      "id": "annual-forecast",
+      "path": "skills/annual-forecast/SKILL.md",
+      "triggers": ["年度趋势", "太阳返照", "次限推运", "年度行运"],
+      "tools": ["geocode", "natal-chart", "transits", "transit-calendar", "solar-return", "secondary-progressions", "sky-events", "sky-event-kinds", "render-chart"],
+      "references": ["references/core.md", "references/timing.md", "references/communication.md"],
+      "collaborates_with": ["personality-reading", "career-consultation", "finance-reading", "love-consultation"]
+    },
+    {
+      "id": "event-timing",
+      "path": "skills/event-timing/SKILL.md",
+      "triggers": ["占星择时", "候选时刻比较", "启动时机", "选举占星"],
+      "tools": ["geocode", "natal-chart", "transits", "transit-calendar", "sky-events", "sky-event-kinds", "electional-day", "render-chart"],
+      "references": ["references/core.md", "references/timing.md", "references/communication.md"],
+      "collaborates_with": ["career-consultation", "annual-forecast"]
+    },
+    {
+      "id": "horary-consultation",
+      "path": "skills/horary-consultation/SKILL.md",
+      "triggers": ["卜卦占星", "问题时刻盘", "传统卜卦", "具体问题时局判断"],
+      "tools": ["geocode", "horary-chart", "horary-diagnostics", "render-chart"],
+      "references": ["references/core.md", "references/horary.md", "references/communication.md"],
+      "collaborates_with": ["astrology-education"]
+    },
+    {
+      "id": "astrology-education",
+      "path": "skills/astrology-education/SKILL.md",
+      "triggers": ["占星概念", "符号含义", "方法区别", "占星学习"],
+      "tools": ["geocode", "natal-chart", "sky-events", "sky-event-kinds", "astro-content", "render-chart"],
+      "references": ["references/core.md", "references/relationships.md", "references/timing.md", "references/horary.md", "references/communication.md"],
+      "collaborates_with": ["personality-reading", "relationship-reading", "annual-forecast", "horary-consultation"]
+    }
+  ]
+}

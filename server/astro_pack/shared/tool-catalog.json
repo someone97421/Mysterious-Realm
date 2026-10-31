@@ -1,0 +1,124 @@
+{
+  "schema_version": "1.0.0",
+  "tools": {
+    "geocode": {
+      "description": "将地点名称解析为坐标与地点元数据",
+      "providers": ["cosmyday"],
+      "data_kind": "reference_data",
+      "ttl_seconds": 2592000,
+      "credits": {}
+    },
+    "natal-chart": {
+      "description": "计算本命盘的行星、宫位与相位",
+      "providers": ["cosmyday", "astroway"],
+      "data_kind": "calculation",
+      "ttl_seconds": 31536000,
+      "credits": {"astroway": 20}
+    },
+    "synastry": {
+      "description": "计算两张本命盘之间的比较盘与交叉相位",
+      "providers": ["astroway"],
+      "data_kind": "calculation",
+      "ttl_seconds": 31536000,
+      "credits": {"astroway": 50}
+    },
+    "composite-chart": {
+      "description": "计算中点组合盘",
+      "providers": ["astroway"],
+      "data_kind": "calculation",
+      "ttl_seconds": 31536000,
+      "credits": {"astroway": 50}
+    },
+    "transits": {
+      "description": "计算指定时刻的行运盘及行运相位",
+      "providers": ["astroway"],
+      "data_kind": "calculation",
+      "ttl_seconds": 2592000,
+      "credits": {"astroway": 50}
+    },
+    "transit-calendar": {
+      "description": "计算日期范围内行运对本命的精确相位事件",
+      "providers": ["astroway"],
+      "data_kind": "calculation",
+      "ttl_seconds": 2592000,
+      "credits": {"astroway": 100}
+    },
+    "solar-return": {
+      "description": "计算指定年份与地点的太阳返照盘",
+      "providers": ["astroway"],
+      "data_kind": "calculation",
+      "ttl_seconds": 31536000,
+      "credits": {"astroway": 50}
+    },
+    "secondary-progressions": {
+      "description": "计算目标日期的次限推运盘",
+      "providers": ["astroway"],
+      "data_kind": "calculation",
+      "ttl_seconds": 2592000,
+      "credits": {"astroway": 50}
+    },
+    "sky-events": {
+      "description": "获取逆行、月相、食、星座季节与行星换座事件",
+      "providers": ["cosmyday"],
+      "data_kind": "calculation",
+      "ttl_seconds": 21600,
+      "credits": {}
+    },
+    "sky-event-kinds": {
+      "description": "获取供应商当前支持的星象事件类型及数量",
+      "providers": ["cosmyday"],
+      "data_kind": "reference_data",
+      "ttl_seconds": 86400,
+      "credits": {}
+    },
+    "horoscope": {
+      "description": "获取日、周、月星座运势生成内容",
+      "providers": ["cosmyday"],
+      "data_kind": "generated_content",
+      "ttl_seconds": 3600,
+      "credits": {}
+    },
+    "astro-content": {
+      "description": "获取月相、行运、周展望或月度概览生成内容",
+      "providers": ["cosmyday"],
+      "data_kind": "generated_content",
+      "ttl_seconds": 3600,
+      "credits": {}
+    },
+    "electional-day": {
+      "description": "获取指定商业启动日期的择日适宜性辅助数据",
+      "providers": ["astroway"],
+      "data_kind": "derived_assessment",
+      "ttl_seconds": 2592000,
+      "credits": {"astroway": null}
+    },
+    "horary-chart": {
+      "description": "计算问题时刻的卜卦盘及指示星分析数据",
+      "providers": ["astroway"],
+      "data_kind": "calculation",
+      "ttl_seconds": 31536000,
+      "credits": {"astroway": 20}
+    },
+    "horary-diagnostics": {
+      "description": "计算卜卦盘的根本性与判断前注意事项诊断",
+      "providers": ["astroway"],
+      "data_kind": "derived_assessment",
+      "ttl_seconds": 31536000,
+      "credits": {"astroway": null}
+    },
+    "render-chart": {
+      "description": "渲染单盘、双轮盘或组合盘 SVG",
+      "providers": ["astroway"],
+      "data_kind": "visualization",
+      "ttl_seconds": 2592000,
+      "credits": {"astroway": null}
+    },
+    "provider-usage": {
+      "description": "查询当前 AstroWay key 的额度与用量",
+      "providers": ["astroway"],
+      "data_kind": "account_data",
+      "ttl_seconds": 0,
+      "credits": {"astroway": 0}
+    }
+  }
+}

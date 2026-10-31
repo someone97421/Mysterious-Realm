@@ -2,6 +2,7 @@ import base64
 import json
 import math
 import re
+import sqlite3
 from dataclasses import dataclass
 
 import httpx
@@ -9,10 +10,13 @@ import httpx
 from . import db
 from .auth import decrypt_key
 from .config import UPLOAD_DIR
+from .errors import AgentFailure, diagnostic
 
 
-class ModelError(Exception):
-    pass
+class ModelError(AgentFailure):
+    def __init__(self, message, code="MODEL_ERROR"):
+        super().__init__(message)
+        self.code = code
 
 
 def estimate_tokens(text):
@@ -30,7 +34,7 @@ def extract_json(text):
     start = cleaned.find("{")
     if start < 0:
         raise ValueError("模型未返回结构化内容")
-    value, _ = json.JSONDecoder().raw_decode(cleaned[start:])
+    value, _ = json.JSONDecoder(strict=False).raw_decode(cleaned[start:])
     if not isinstance(value, dict):
         raise ValueError("模型返回的内容不是对象")
     return value
@@ -67,7 +71,7 @@ def request_payload(model, messages):
         content = message.get("content", "")
         images = message.get("images", [])
         if images and not model["supports_images"]:
-            content += "\n[这条历史消息含图片，当前模型不具备图片能力；请依据已有文字信息，不臆测牌面或图片内容。]"
+            content += "\n[这条历史消息含图片，当前模型不具备图片能力；请依据已有文字信息，不臆测图片内容。]"
             images = []
         if schema == "chat_completions":
             parts = [{"type": "text", "text": content or "请理解这张图片"}]
@@ -195,12 +199,11 @@ async def stream(model, user, purpose, messages, *, include_reasoning=False):
         async with httpx.AsyncClient(timeout=httpx.Timeout(180, connect=20)) as client:
             async with client.stream("POST", endpoint(model["base_url"], schema), headers=headers, json=payload) as response:
                 if response.status_code >= 400:
-                    hints = {401: "API Key 无效", 403: "模型访问被拒绝", 404: "接入点或模型 ID 不存在", 429: "额度不足或请求过于频繁"}
-                    hint = hints.get(response.status_code, "请核对模型、协议与思考参数")
-                    raise ModelError(f"模型服务返回 HTTP {response.status_code}：{hint}")
+                    reason = {401: "解读服务的认证暂时失效", 403: "解读服务暂时拒绝访问", 404: "解读服务配置暂时不可用", 429: "解读服务繁忙或额度不足"}.get(response.status_code, "解读服务暂时未能响应")
+                    raise ModelError(reason, f"MODEL_HTTP_{response.status_code}")
                 accepted = True
                 if "text/event-stream" not in response.headers.get("content-type", ""):
-                    raise ModelError("模型服务未返回流式响应，请检查 Schema 类型及接入点")
+                    raise ModelError("解读服务返回的内容格式不正确。", "MODEL_STREAM_FORMAT")
                 async for raw in sse_data(response):
                     if raw.strip() == "[DONE]":
                         ended = True
@@ -208,9 +211,9 @@ async def stream(model, user, purpose, messages, *, include_reasoning=False):
                     try:
                         event = json.loads(raw)
                     except json.JSONDecodeError as exc:
-                        raise ModelError("模型流式响应格式异常，请重试") from exc
+                        raise ModelError("解读的传输格式出现异常。", "MODEL_STREAM_FORMAT") from exc
                     if event.get("error") or event.get("type") == "error":
-                        raise ModelError("模型在生成过程中返回错误，请检查服务额度和配置")
+                        raise ModelError("解读服务在生成过程中发生错误。", "MODEL_GENERATION_ERROR")
                     text, reasoning = "", ""
                     if schema == "chat_completions":
                         usage.update(event.get("usage"), schema)
@@ -219,7 +222,7 @@ async def stream(model, user, purpose, messages, *, include_reasoning=False):
                             choice = choices[0]
                             reason = choice.get("finish_reason")
                             if reason in ("length", "content_filter"):
-                                raise ModelError("模型输出被截断或过滤，请调整最大输出长度后重试")
+                                raise ModelError("回应未能完整生成，正在缩短内容后重新整理。", "MODEL_OUTPUT_LIMIT")
                             if reason:
                                 ended = True
                             delta = choice.get("delta") or {}
@@ -235,7 +238,7 @@ async def stream(model, user, purpose, messages, *, include_reasoning=False):
                             result = event.get("response", {})
                             usage.update(result.get("usage"), schema)
                             if kind != "response.completed":
-                                raise ModelError("模型未能完整输出，请调整输出预算或稍后重试")
+                                raise ModelError("回应尚未生成完整。", "MODEL_INCOMPLETE")
                             ended = True
                     else:
                         kind = event.get("type", "")
@@ -248,7 +251,7 @@ async def stream(model, user, purpose, messages, *, include_reasoning=False):
                         elif kind == "message_delta":
                             usage.update(event.get("usage"), schema)
                             if event.get("delta", {}).get("stop_reason") == "max_tokens":
-                                raise ModelError("模型输出达到上限，请增大输出预算后重试")
+                                raise ModelError("回应长度超过当前输出预算，需要精简。", "MODEL_OUTPUT_LIMIT")
                         elif kind == "message_stop":
                             ended = True
                     if isinstance(reasoning, str) and reasoning:
@@ -259,16 +262,21 @@ async def stream(model, user, purpose, messages, *, include_reasoning=False):
                         output.append(text)
                         yield {"type": "text", "text": text} if include_reasoning else text
                 if not ended:
-                    raise ModelError("与模型的连接提前中断，请重试")
+                    raise ModelError("回应的连接提前中断。", "MODEL_DISCONNECTED")
                 if not output:
-                    raise ModelError("模型未返回可展示内容，请检查思考预算或模型配置")
+                    raise ModelError("解读服务没有返回可展示的内容。", "MODEL_EMPTY")
     except httpx.TimeoutException as exc:
-        raise ModelError("模型响应超时，请稍后重试") from exc
+        raise ModelError("等待解读的时间较长，服务暂未回应。", "MODEL_TIMEOUT") from exc
     except httpx.RequestError as exc:
-        raise ModelError("无法连接模型服务，请检查接入点和网络") from exc
+        raise ModelError("暂时无法连接解读服务。", "MODEL_CONNECTION") from exc
     finally:
         if accepted:
-            record_usage(model, user, purpose, usage, messages, "".join(reasoning_output + output))
+            for attempt in range(3):
+                try:
+                    record_usage(model, user, purpose, usage, messages, "".join(reasoning_output + output))
+                    break
+                except sqlite3.Error as error:
+                    diagnostic(error, "模型用量保存" if attempt < 2 else "模型用量保存三次失败")
 
 
 async def complete(model, user, purpose, messages):

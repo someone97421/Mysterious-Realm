@@ -1,0 +1,256 @@
+.mode-mark { width: 28px; height: 28px; flex: 0 0 28px; display: grid; place-items: center; border: 1px solid var(--line-strong); border-radius: 9px; background: #ffffff05; }
+.mode-mark svg { width: 15px; height: 15px; }
+.mode-mark--tarot { color: var(--purple-light); border-color: #a989e850; background: #a989e812; }
+.mode-mark--astrology { color: var(--gold); border-color: #e7c98f50; background: #e7c98f0d; }
+.mode-switcher { position: relative; display: inline-flex; align-items: stretch; gap: 3px; padding: 3px; border: 1px solid var(--line-strong); border-radius: 15px; background: #110d1dba; box-shadow: inset 0 1px #ffffff09, 0 5px 18px #0002; isolation: isolate; }
+.mode-switcher__halo { position: absolute; z-index: -1; inset: -10px; border-radius: 24px; opacity: .55; filter: blur(16px); background: radial-gradient(circle at 28% 50%, #a989e850, transparent 48%); transition: background 400ms ease, transform 500ms cubic-bezier(.16,1,.3,1); }
+.mode-switcher--astrology .mode-switcher__halo { transform: translateX(25%); background: radial-gradient(circle at 72% 50%, #e7c98f50, transparent 48%); }
+.mode-switcher.is-switching .mode-switcher__halo { animation: mode-burst 680ms cubic-bezier(.16,1,.3,1) both; }
+@keyframes mode-burst { 0% { opacity: .5; transform: scale(.88); } 45% { opacity: 1; transform: scale(1.16); } 100% { opacity: .55; transform: scale(1); } }
+.mode-switcher__option { position: relative; min-width: 72px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 8px; border: 0; border-radius: 11px; color: var(--faint); background: transparent; text-align: left; transition: color 180ms ease, background-color 240ms ease, transform 240ms cubic-bezier(.16,1,.3,1); }
+.mode-switcher__option:hover:not(:disabled) { color: var(--text); transform: translateY(-1px); }
+.mode-switcher__option.is-active { color: var(--text); background: linear-gradient(135deg, #a989e82b, #a989e80c); box-shadow: inset 0 0 0 1px #a989e83c, 0 4px 16px #0003; }
+.mode-switcher--astrology .mode-switcher__option.is-active { background: linear-gradient(135deg, #e7c98f2b, #e7c98f0c); box-shadow: inset 0 0 0 1px #e7c98f3c, 0 4px 16px #0003; }
+.mode-switcher__option > svg { width: 16px; height: 16px; }
+.mode-switcher__option > span { display: grid; line-height: 1.1; }
+.mode-switcher__option strong { font-size: 11px; font-weight: 650; }
+.mode-switcher__option small { margin-top: 3px; color: var(--faint); font-size: 8px; }
+.mode-switcher__error { position: absolute; top: calc(100% + 8px); right: 0; z-index: 10; width: max-content; max-width: min(280px, 70vw); padding: 6px 9px; border: 1px solid #ed8d9e45; border-radius: 8px; color: var(--red); background: #211321f5; box-shadow: var(--shadow); font-size: 10px; }
+.model-card__badges { min-width: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+.model-card__defaults { min-width: 0; display: flex; align-items: center; gap: 2px; color: var(--faint); font-size: 9px; }
+.model-card__defaults small { margin-right: 2px; white-space: nowrap; }
+.model-card__defaults .icon-button { width: 30px; height: 30px; flex-basis: 30px; }
+.mode-card-letter { display: grid; place-items: center; width: 17px; height: 17px; border: 1px solid currentColor; border-radius: 50%; font-size: 9px; line-height: 1; }
+
+.astro-shell { height: 100dvh; display: grid; grid-template-columns: 256px minmax(0, 1fr); overflow: hidden; background: radial-gradient(ellipse at 50% 15%, #3c2c6940, transparent 55%), var(--bg); }
+.astro-shell > .sidebar { min-height: 0; background: #100c19ed; }
+.astro-shell .sidebar__section-label { margin-top: 18px; }
+.astro-main { min-height: 0; min-width: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.astro-shell .chat-header { background: #0c0914b8; }
+.mobile-menu { display: none; }
+.astro-workspace { min-height: 0; min-width: 0; display: grid; grid-template-columns: minmax(320px, 1fr) minmax(340px, 1fr); }
+.chart-column { min-width: 0; min-height: 0; padding: 32px 24px; overflow-y: auto; scrollbar-width: thin; border-right: 1px solid var(--line); background-image: radial-gradient(circle at 17% 28%, #e7c98f80 0 1px, transparent 1.5px), radial-gradient(circle at 81% 12%, #cfb8f580 0 1px, transparent 1.5px), radial-gradient(circle at 69% 78%, #cfb8f550 0 1px, transparent 1.5px); background-size: 310px 310px, 370px 400px, 460px 520px; }
+.chart-stage { width: min(620px, 100%); margin: auto; text-align: center; }
+.chart-stage h2 { margin-top: 12px; font-family: "Songti SC", "STSong", serif; font-size: clamp(22px, 2.1vw, 32px); font-weight: 500; overflow-wrap: anywhere; }
+.chart-wheel { position: relative; margin: 16px auto; width: 100%; }
+.zodiac-svg { display: block; width: 100%; height: auto; aspect-ratio: 1; filter: drop-shadow(0 0 24px #a989e816); }
+.wheel-halo { fill: #17102570; stroke: #e7c98f22; stroke-width: .7; }
+.wheel-ring { fill: none; stroke: #e7c98f65; stroke-width: .7; }
+.wheel-tick { stroke: #e7c98f99; stroke-width: .7; }
+.sign-label { fill: var(--gold); font-size: 17px; text-anchor: middle; opacity: .8; }
+.house-line { stroke: #cfb8f54a; stroke-width: .8; }
+.house-label { fill: var(--muted); font-size: 9px; text-anchor: middle; }
+.aspect-line { stroke: #b9a8ec; stroke-width: .7; opacity: .26; transition: opacity 140ms ease-out, stroke-width 140ms ease-out; }
+.aspect-line.is-highlighted { stroke: var(--gold); stroke-width: 1.5; opacity: .95; }
+.planet-node { cursor: pointer; }
+.planet-node > .planet-disc { fill: #181125; stroke: var(--gold); stroke-width: 1; transition: fill 120ms ease-out; }
+.planet-node:hover > .planet-disc, .planet-node.is-selected > .planet-disc, .planet-node:focus-visible > .planet-disc { fill: #6d5830; stroke-width: 2; }
+.planet-node:focus-visible { outline: none; }
+.planet-leader { stroke: #e7c98f77; stroke-width: .65; }
+.planet-node .planet-position { fill: var(--gold); stroke: none; }
+.astro-symbol { display: inline-block; flex: 0 0 auto; fill: none; stroke: currentColor; vertical-align: middle; }
+.astro-symbol__dot { fill: currentColor; stroke: none; }
+.sign-label, .planet-glyph { color: var(--gold); }
+.abstract-orbit { position: relative; width: min(390px, 90%); margin: 36px auto; aspect-ratio: 1; display: grid; place-items: center; background: radial-gradient(circle, #49315f3d, transparent 70%); }
+.abstract-orbit i { position: absolute; inset: 4%; border: 1px solid #e7c98f42; border-radius: 50%; box-shadow: 0 0 0 12px #e7c98f04; }
+.abstract-orbit i:nth-child(2) { inset: 18%; transform: rotate(-35deg) scaleX(.6); border-color: #cfb8f544; }
+.abstract-orbit i:nth-child(3) { inset: 18%; transform: rotate(35deg) scaleX(.6); border-color: #cfb8f544; }
+.abstract-orbit__spark { width: 78px; height: 78px; color: var(--gold); fill: none; stroke: currentColor; stroke-width: .8; }
+.planet-detail { min-height: 56px; display: grid; gap: 4px; align-content: center; margin: 8px 0; }
+.planet-detail strong { color: var(--gold); font-size: 16px; }
+.planet-detail > span { color: var(--muted); font-size: 12px; }
+.planet-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.planet-legend button { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 6px 10px; color: var(--muted); font-size: 12px; border: 1px solid var(--line); border-radius: 8px; background: #151020; transition: color 140ms ease, border-color 140ms ease, background-color 140ms ease; }
+.planet-legend button:hover, .planet-legend button[aria-pressed="true"] { color: var(--gold); border-color: #e7c98f66; background: #e7c98f0b; }
+.aspect-details { display: grid; gap: 4px; margin-top: 12px; color: var(--muted); }
+.chart-footnote { display: grid; gap: 8px; margin-top: 20px; }
+.chart-source { color: var(--faint); font-size: 11px; }
+.chart-switch { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; color: var(--muted); font-size: 12px; }
+.chart-switch select { min-width: 0; flex: 1; padding: 8px; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--text); background: var(--surface); }
+.is-revealing { animation: chart-reveal 1400ms cubic-bezier(.16,1,.3,1) both; }
+@keyframes chart-reveal { from { opacity: 0; transform: scale(.88) rotate(-8deg); filter: blur(5px); } to { opacity: 1; transform: scale(1) rotate(0); filter: blur(0); } }
+.explore-actions { width: min(420px, 100%); margin: 32px auto 0; display: grid; gap: 8px; }
+.explore-actions button { min-width: 0; display: flex; align-items: center; gap: 12px; padding: 12px 16px; color: var(--muted); border: 1px solid var(--line); border-radius: 12px; background: #ffffff04; text-align: left; transition: border-color 140ms ease, background-color 140ms ease; }
+.explore-actions button span { color: var(--gold); }
+.explore-actions button span:last-child { margin-left: auto; }
+.explore-actions button:hover { background: #a989e812; border-color: #e7c98f44; }
+.dialogue-column { min-width: 0; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; background: #0c091433; }
+.dialogue-timeline { min-height: 0; padding: 28px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #49375c transparent; }
+.dialogue-welcome { min-height: 240px; display: grid; align-content: center; justify-items: start; gap: 16px; }
+.dialogue-welcome > svg { color: var(--gold); width: 28px; height: 28px; }
+.dialogue-welcome h2 { font-family: "Songti SC", "STSong", serif; font-size: 25px; font-weight: 500; }
+.astro-message { min-width: 0; margin-bottom: 28px; }
+.astro-message > header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 8px; }
+.astro-message header strong { color: var(--gold); font-size: 12px; }
+.astro-message header time, .astro-message header small { color: var(--faint); font-size: 10px; }
+.astro-message .message__content { color: #ddd3e8; line-height: 1.9; }
+.astro-message--user { padding: 16px; border: 1px solid var(--line); border-radius: 16px 16px 4px 16px; background: #a989e80b; }
+.astro-message--user header strong { color: var(--muted); }
+.progress-log { margin: 16px 0 24px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); font-size: 12px; }
+.progress-log summary { cursor: pointer; color: var(--gold); }
+.progress-log ol { display: grid; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
+.progress-log li { display: flex; gap: 8px; overflow-wrap: anywhere; }
+.progress-log li > span { width: 16px; flex: 0 0 16px; display: inline-flex; padding-top: 2px; }
+.progress-log li > span svg { width: 14px; height: 14px; }
+.progress-log li > div { min-width: 0; flex: 1; display: flex; flex-wrap: wrap; gap: 2px 10px; }
+.progress-log li > div > span { min-width: 0; overflow-wrap: anywhere; }
+.progress-log li time { margin-left: auto; color: var(--faint); font-size: 9px; white-space: nowrap; }
+.progress-complete > span { color: var(--green); }
+.progress-error { color: var(--red); }
+.astro-composer-wrap { padding: 16px 24px max(20px, env(safe-area-inset-bottom)); }
+.astro-composer { position: relative; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #a989e83d; border-radius: 16px; background: #181121; box-shadow: 0 12px 32px #0003; transition: border-color 160ms ease, box-shadow 160ms ease; }
+.astro-composer:focus-within { border-color: #e7c98f88; box-shadow: 0 0 0 3px #e7c98f0d, 0 12px 32px #0003; }
+.token-editor { min-width: 0; min-height: 80px; max-height: 200px; overflow-y: auto; padding: 6px 8px; border-radius: 9px; outline: 2px solid transparent; outline-offset: 2px; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; transition: outline-color 140ms ease, background-color 140ms ease; }
+.token-editor:focus-visible { outline-color: var(--gold); background: #ffffff05; }
+.token-editor:empty::before { content: attr(data-placeholder); color: var(--faint); pointer-events: none; }
+.token-editor[contenteditable="false"] { opacity: .65; }
+.inline-profile { display: inline; padding: 3px 7px; border: 1px solid currentColor; border-radius: 8px; background: #a989e80a; font-size: .92em; white-space: normal; box-decoration-break: clone; -webkit-box-decoration-break: clone; cursor: pointer; }
+.inline-profile:hover { background: #a989e820; }
+.composer-actions { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+.composer-actions > .button:last-child { min-width: 88px; margin-left: auto; }
+.composer-key-hint { min-width: 0; flex: 1 1 150px; display: none; }
+.profile-picker { position: absolute; z-index: 30; left: 0; bottom: calc(100% + 12px); width: min(340px, 100%); padding: 12px; border: 1px solid #e7c98f50; border-radius: 16px; background: #1c1429; box-shadow: var(--shadow); }
+.profile-picker > input { width: 100%; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--text); background: #0d0a15; }
+.profile-picker [role="listbox"] { max-height: 220px; overflow-y: auto; margin: 8px 0; }
+.profile-picker [role="option"] { width: 100%; display: flex; align-items: center; gap: 12px; padding: 8px; border: 1px solid transparent; border-radius: 8px; background: transparent; text-align: left; }
+.profile-picker [role="option"] small { display: block; color: var(--faint); font-size: 11px; }
+.profile-picker [role="option"][aria-selected="true"], .profile-picker [role="option"]:hover { border-color: #e7c98f44; background: #e7c98f10; }
+.profile-list { display: grid; gap: 12px; }
+.profile-card { min-width: 0; display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: #ffffff04; animation: rise 280ms cubic-bezier(.16,1,.3,1) both; }
+.profile-avatar { width: 40px; flex-shrink: 0; text-align: center; font-size: 24px; }
+.profile-card > div { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.profile-card small { display: block; color: var(--muted); font-size: 11px; }
+.profile-summary { display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: 16px; margin: 0; }
+.profile-summary dt { color: var(--faint); font-size: 12px; }
+.profile-summary dd { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.location-results { display: grid; max-height: 220px; overflow-y: auto; gap: 4px; }
+.location-results button { padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); text-align: left; }
+.location-results button:hover { border-color: var(--gold); }
+.location-results small { display: block; color: var(--muted); }
+.selected-location { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--gold); font-size: 12px; }
+
+.message__content .markdown { min-width: 0; white-space: normal; }
+.markdown > :first-child { margin-top: 0; }
+.markdown > :last-child { margin-bottom: 0; }
+.markdown p { margin: 0 0 12px; }
+.markdown h1, .markdown h2, .markdown h3, .markdown h4 { margin: 24px 0 10px; color: var(--text); font-family: "Songti SC", "STSong", serif; line-height: 1.45; }
+.markdown h1 { font-size: 22px; } .markdown h2 { font-size: 19px; } .markdown h3 { font-size: 16px; } .markdown h4 { font-size: 14px; }
+.markdown ul, .markdown ol { margin: 8px 0 16px; padding-left: 24px; }
+.markdown li { margin: 5px 0; padding-left: 3px; }
+.markdown blockquote { margin: 16px 0; padding: 10px 14px; border-left: 2px solid var(--gold); border-radius: 0 10px 10px 0; color: var(--muted); background: #e7c98f08; }
+.markdown a { color: var(--gold); text-underline-offset: 3px; }
+.markdown code { padding: 2px 5px; border: 1px solid #e7c98f20; border-radius: 5px; color: #f0d9a4; background: #08060e80; font: 12px/1.6 ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
+.markdown pre { max-width: 100%; margin: 14px 0; padding: 14px; overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: #08060e; }
+.markdown pre code { padding: 0; border: 0; color: var(--text); background: transparent; white-space: pre; }
+.markdown-table { max-width: 100%; margin: 14px 0; overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+.markdown-table table { width: 100%; min-width: 420px; border-collapse: collapse; font-size: 12px; }
+.markdown-table th, .markdown-table td { padding: 9px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.markdown-table th { color: var(--gold); background: #e7c98f08; }
+.planet-link { display: inline; padding: 0 2px; border: 0; border-bottom: 1px dotted #e7c98f88; color: var(--gold); background: transparent; }
+
+.reading-panel { min-width: 0; margin: 12px 0 28px; padding: 20px; border: 1px solid #e7c98f30; border-radius: 20px; color: #ddd3e8; background: radial-gradient(circle at 100% 0, #49315f24, transparent 42%), linear-gradient(145deg, #1c1429, #110c1a); box-shadow: 0 16px 42px #02020738, inset 0 1px #ffffff08; text-align: left; animation: rise 340ms cubic-bezier(.16,1,.3,1) both; }
+.reading-panel.is-preview { border-color: #a989e84a; }
+.reading-hero { display: flex; align-items: flex-start; gap: 14px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+.reading-hero > div:last-child { min-width: 0; }
+.reading-hero__mark { width: 42px; height: 42px; flex: 0 0 42px; display: grid; place-items: center; border: 1px solid #e7c98f45; border-radius: 13px; color: var(--gold); background: #e7c98f0b; }
+.reading-hero h2 { margin-top: 5px; color: var(--text); font-family: "Songti SC", "STSong", serif; font-size: 22px; font-weight: 550; line-height: 1.4; overflow-wrap: anywhere; }
+.reading-hero p { margin-top: 5px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.reading-summary { margin: 16px 0; padding: 13px 15px; border-left: 2px solid var(--gold); border-radius: 0 10px 10px 0; color: #e8e3d5; background: #e7c98f08; font-size: 14px; line-height: 1.85; overflow-wrap: anywhere; }
+.reading-panel section { min-width: 0; }
+.reading-panel section h3, .reading-actions h3 { color: var(--text); font-size: 14px; font-weight: 650; line-height: 1.5; overflow-wrap: anywhere; }
+.reading-panel section p { margin-top: 8px; color: var(--muted); font-size: 13px; line-height: 1.85; white-space: pre-line; overflow-wrap: anywhere; }
+.reading-section-index { display: block; margin-bottom: 8px; color: var(--gold); font: 10px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .16em; }
+.reading-natal-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 12px; margin-top: 16px; }
+.reading-natal-grid > section, .reading-decision-sections > section { padding: 15px; border: 1px solid var(--line); border-radius: 13px; background: #ffffff04; }
+.reading-highlights { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0; padding: 0; list-style: none; }
+.reading-highlights li { max-width: 100%; padding: 4px 8px; border: 1px solid #e7c98f25; border-radius: 7px; color: #e3d2ac; background: #e7c98f08; font-size: 11px; line-height: 1.55; overflow-wrap: anywhere; }
+.reading-relationship-flow { display: grid; margin-top: 16px; }
+.reading-relationship-flow > section { position: relative; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; padding: 14px 0; }
+.reading-relation-node { position: relative; align-self: stretch; display: flex; align-items: center; justify-content: center; gap: 2px; }
+.reading-relation-node::after { content: ""; position: absolute; z-index: 0; top: 28px; bottom: -28px; left: 16px; width: 1px; background: #e7c98f30; }
+.reading-relationship-flow > section:last-child .reading-relation-node::after { display: none; }
+.reading-relation-node i { position: relative; z-index: 1; width: 9px; height: 9px; border: 1px solid var(--gold); border-radius: 50%; background: #1c1429; }
+.reading-relation-node i + i { margin-left: -4px; background: #49315f; }
+.reading-forecast-line { display: grid; margin: 18px 0 0; padding: 0; list-style: none; }
+.reading-forecast-line > li { position: relative; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 12px; padding-bottom: 18px; }
+.reading-time-marker { position: relative; width: 9px; height: 9px; margin: 6px 0 0 3px; border: 2px solid var(--gold); border-radius: 50%; background: #1c1429; }
+.reading-time-marker::after { content: ""; position: absolute; top: 13px; bottom: -19px; left: 2px; width: 1px; background: #e7c98f30; }
+.reading-forecast-line > li:last-child .reading-time-marker::after { display: none; }
+.reading-forecast-line section { padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+.reading-forecast-line > li:last-child section { padding-bottom: 0; border-bottom: 0; }
+.reading-decision-layout { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 16px; margin-top: 16px; }
+.reading-decision-sections { display: grid; gap: 10px; }
+.reading-actions { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.reading-actions > div { display: grid; gap: 7px; margin-top: 10px; }
+.reading-actions button { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px; color: var(--muted); background: #ffffff04; text-align: left; transition: color 140ms ease, border-color 140ms ease, background-color 140ms ease, transform 140ms ease; }
+.reading-actions button > span { min-width: 0; overflow-wrap: anywhere; }
+.reading-actions button svg { width: 14px; color: var(--gold); }
+.reading-actions button:hover:not(:disabled) { color: var(--text); border-color: #e7c98f50; background: #e7c98f0b; transform: translateX(2px); }
+.reading-actions--decision { margin-top: 0; padding: 13px; border: 1px solid #e7c98f28; border-radius: 12px; background: #e7c98f07; }
+.reading-closing { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); color: #d8ceb9; font-family: "Songti SC", "STSong", serif; font-size: 14px; line-height: 1.8; white-space: pre-line; overflow-wrap: anywhere; }
+.reading-sources { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 14px; margin-top: 16px; color: var(--faint); font-size: 10px; }
+.reading-sources > span, .reading-sources > div { display: flex; align-items: center; gap: 8px; }
+.reading-sources a { display: inline-flex; align-items: center; gap: 3px; color: var(--gold); }
+.reading-pending { display: flex; align-items: center; gap: 5px; min-height: 88px; color: var(--muted); font-size: 12px; }
+.reading-pending i { width: 5px; height: 5px; border-radius: 50%; background: var(--gold); animation: glow 1s ease-in-out infinite; }
+
+.astrology-services { margin-bottom: 24px; }
+.astrology-subheader { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.astrology-subheader h2 { font-size: 15px; font-weight: 650; }
+.astrology-subheader small, .astrology-subheader > span { color: var(--faint); font-size: 10px; }
+.astrology-service-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); gap: 14px; }
+.astrology-service-card { min-width: 0; padding: 17px; border: 1px solid var(--line); border-radius: 15px; background: linear-gradient(145deg, #1a1325, #130e1d); box-shadow: inset 0 1px #ffffff06; animation: rise 340ms cubic-bezier(.16,1,.3,1) both; animation-delay: calc(var(--item-index) * 40ms); transition: transform 160ms ease, border-color 160ms ease; }
+.astrology-service-card:hover { transform: translateY(-2px); border-color: #e7c98f38; }
+.astrology-service-card.is-disabled { background: #130e1d; }
+.astrology-service-card > header { min-width: 0; display: flex; align-items: center; gap: 10px; }
+.astrology-service-card__icon { width: 39px; height: 39px; flex: 0 0 39px; display: grid; place-items: center; border: 1px solid #e7c98f30; border-radius: 12px; color: var(--gold); background: #e7c98f09; }
+.astrology-service-card > header > div { min-width: 0; flex: 1; }
+.astrology-service-card h3 { overflow-wrap: anywhere; font-size: 15px; font-weight: 600; }
+.astrology-service-card header p { color: var(--faint); font-size: 10px; }
+.astrology-service-card__meta { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 18px 0; color: var(--muted); font-size: 11px; }
+.astrology-service-card__meta > span { display: inline-flex; align-items: center; gap: 5px; }
+.astrology-service-card__meta strong { color: var(--gold); font: 600 14px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.astrology-service-card > footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.astrology-service-card > footer > div { display: flex; }
+.service-settings { max-width: 800px; margin-top: 24px; padding: 20px; border: 1px solid var(--line); border-radius: 15px; background: #151020; }
+.service-settings fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+.service-settings .form-grid { margin-top: 0; }
+.tool-usage-table { margin-top: 20px; }
+
+@media (min-width: 1600px) { .composer-key-hint { display: inline; } .astro-workspace { grid-template-columns: minmax(420px, 1.1fr) minmax(440px, 1fr); } }
+@media (max-width: 1180px) { .astro-shell { grid-template-columns: 220px minmax(0, 1fr); } .astro-workspace { grid-template-columns: minmax(260px, .9fr) minmax(300px, 1fr); } .chart-column { padding: 24px 16px; } .dialogue-timeline { padding: 20px; } .astro-composer-wrap { padding: 12px; } }
+@media (max-width: 980px) { .astro-shell { grid-template-columns: minmax(0, 1fr); } .astro-shell > .sidebar { display: none; } .mobile-menu { display: inline-grid; } }
+@media (max-width: 680px) {
+  .astro-shell { height: auto; min-height: 100dvh; }
+  .astro-main { display: block; }
+  .astro-shell .chat-header { position: sticky; top: 0; z-index: 20; padding: 9px 12px; }
+  .astro-shell .chat-header__title .eyebrow { display: none; }
+  .astro-workspace { display: flex; flex-direction: column; }
+  .chart-column { overflow: visible; border-right: 0; border-bottom: 1px solid var(--line); padding: 24px 16px; }
+  .chart-stage { max-width: 400px; }
+  .chart-stage h2 { font-size: 24px; }
+  .abstract-orbit { width: 220px; margin: 20px auto; }
+  .explore-actions { margin-top: 20px; }
+  .dialogue-column { display: flex; flex-direction: column; }
+  .dialogue-timeline { overflow: visible; padding: 24px 16px; }
+  .dialogue-welcome { min-height: 140px; }
+  .astro-composer-wrap { position: sticky; bottom: 0; z-index: 25; padding: 12px 12px max(12px, env(safe-area-inset-bottom)); background: #0c0914f2; }
+  .token-editor { min-height: 60px; max-height: 140px; }
+  .profile-picker [role="listbox"] { max-height: 180px; }
+  .reading-panel { padding: 15px; border-radius: 16px; }
+  .reading-hero { gap: 11px; }
+  .reading-hero__mark { width: 38px; height: 38px; flex-basis: 38px; }
+  .reading-hero h2 { font-size: 19px; }
+  .reading-natal-grid, .reading-decision-layout { grid-template-columns: minmax(0, 1fr); }
+  .service-settings { padding: 15px; }
+  .mode-switcher { padding: 2px; }
+  .mode-switcher__option { min-width: 42px; padding: 7px 8px; }
+  .mode-switcher__option > span { display: none; }
+  .mode-switcher__option > svg { width: 17px; height: 17px; }
+  .chat-header .mode-switcher { margin-left: auto; }
+}
+@media (max-width: 420px) { .astro-composer { padding: 12px; } .composer-actions > .button:last-child { flex: 1 0 100%; margin-left: 0; } .reading-sources { display: grid; } .progress-log li time { width: 100%; margin-left: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .is-revealing, .reading-panel, .astrology-service-card, .mode-switcher.is-switching .mode-switcher__halo { animation: none; }
+  .mode-switcher__halo { transition: none; }
+}

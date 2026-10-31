@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.astrology-master/schemas/envelope.schema.json",
+  "title": "Astrology Master 工具输出包络",
+  "type": "object",
+  "required": ["schema_version", "tool", "status", "data", "meta", "warnings", "uncertainty", "error"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "tool": {"type": "string"},
+    "status": {"enum": ["ok", "error"]},
+    "data": {},
+    "meta": {
+      "type": "object",
+      "required": ["provider", "source", "calculation", "cache", "is_mock"],
+      "properties": {
+        "provider": {"type": ["string", "null"]},
+        "source": {"type": "object"},
+        "calculation": {"type": "object"},
+        "cache": {"type": "object"},
+        "request_id": {"type": ["string", "null"]},
+        "credits": {"type": ["object", "null"]},
+        "rate_limit": {"type": ["object", "null"]},
+        "sandbox": {"type": "boolean"},
+        "degraded": {"type": "boolean"},
+        "is_mock": {"type": "boolean"}
+      },
+      "additionalProperties": true
+    },
+    "warnings": {"type": "array", "items": {"$ref": "#/$defs/issue"}},
+    "uncertainty": {"type": "array", "items": {"$ref": "#/$defs/issue"}},
+    "error": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": ["code", "message", "retryable"],
+          "properties": {
+            "code": {"type": "string"},
+            "message": {"type": "string"},
+            "retryable": {"type": "boolean"},
+            "details": {}
+          },
+          "additionalProperties": true
+        }
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "issue": {
+      "type": "object",
+      "required": ["code", "message"],
+      "properties": {
+        "code": {"type": "string"},
+        "message": {"type": "string"},
+        "fields": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    }
+  }
+}

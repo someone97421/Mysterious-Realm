@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps, UnidentifiedImageError
 
-from . import admin, auth, conversations, db
+from . import admin, auth, conversations, db, profiles
 from .config import CARD_DIR, MAX_UPLOAD_BYTES, UPLOAD_DIR, WEB_DIR
 from .schemas import Login, Setup
 
@@ -19,11 +19,15 @@ from .schemas import Login, Setup
 async def lifespan(app):
     db.initialize()
     auth.initialize_cipher()
-    yield
+    try:
+        yield
+    finally:
+        await conversations.shutdown()
 
 
-app = FastAPI(title="星帷塔罗", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+app = FastAPI(title="秘域 · Mysterious Realm", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 app.include_router(admin.router)
+app.include_router(profiles.router)
 app.include_router(conversations.router)
 
 
@@ -68,7 +72,8 @@ def setup(body: Setup, response: Response):
         if connection.execute("SELECT 1 FROM users LIMIT 1").fetchone():
             raise HTTPException(409, "管理员已经创建，请登录")
         connection.execute("INSERT INTO users VALUES (?,?,?,?,?,?,?)",
-                           (user_id, username, body.display_name.strip() or username, auth.hash_password(body.password), "admin", 1, db.now()))
+                           (user_id, username, body.display_name.strip() or username,
+                            auth.hash_password(body.password), "admin", 1, db.now()))
     auth.create_session(response, user_id)
     return {"user": auth.public_user(db.one("SELECT * FROM users WHERE id=?", (user_id,)))}
 
@@ -93,17 +98,38 @@ def logout(request: Request, response: Response):
     return {"ok": True}
 
 
+def _mode_model(mode):
+    column = "is_default_tarot" if mode == "tarot" else "is_default_astrology"
+    model = db.one(f"SELECT * FROM models WHERE {column}=1 AND mode_scope IN ('both',?) ORDER BY created_at DESC LIMIT 1", (mode,))
+    if model:
+        return model
+    model = db.one("SELECT * FROM models WHERE is_default=1 AND mode_scope IN ('both',?) LIMIT 1", (mode,))
+    if model:
+        return model
+    return db.one("SELECT * FROM models WHERE mode_scope IN ('both',?) ORDER BY created_at DESC LIMIT 1", (mode,))
+
+
 @app.get("/api/config")
 def config(user=Depends(auth.current_user)):
-    model = db.one("SELECT supports_images FROM models WHERE is_default=1")
-    return {"app_name": "星帷塔罗", "model_ready": model is not None,
-            "supports_images": bool(model and model["supports_images"]), "max_upload_mb": 10}
+    tarot_model = _mode_model("tarot")
+    astrology_model = _mode_model("astrology")
+    models = db.all_rows("SELECT supports_images FROM models WHERE mode_scope='both'")
+    return {
+        "app_name": "秘域 · Mysterious Realm",
+        "model_ready": tarot_model is not None or astrology_model is not None,
+        "tarot_model_ready": tarot_model is not None,
+        "astrology_model_ready": astrology_model is not None,
+        "supports_images": bool(models) and any(model["supports_images"] for model in models),
+        "tarot_supports_images": bool(tarot_model and tarot_model["supports_images"]),
+        "astrology_supports_images": bool(astrology_model and astrology_model["supports_images"]),
+        "max_upload_mb": 10,
+    }
 
 
 @app.post("/api/uploads")
 async def upload(file: UploadFile, user=Depends(auth.current_user)):
-    model = db.one("SELECT supports_images FROM models WHERE is_default=1")
-    if not model or not model["supports_images"]:
+    model = db.one("SELECT supports_images FROM models WHERE supports_images=1 LIMIT 1")
+    if not model:
         raise HTTPException(400, "当前服务暂不支持图片")
     try:
         data = await file.read(MAX_UPLOAD_BYTES + 1)

@@ -1,8 +1,8 @@
-# 星帷塔罗
+# 秘域 · Mysterious Realm
 
-以对话为线索的塔罗应用。紫色夜空、三维抽牌仪式、完整 78 张维特牌面、可翻看的逐牌解析；管理端负责账号、模型与 Token 用量。支持手机和电脑横竖屏、本地运行及单实例 Docker 部署。
+以对话串联塔罗与星座的探索应用。深紫塔罗与深蓝星空共用账号、历史对话、模型管理和 Token 用量；提供三维抽牌仪式、完整 78 张维特牌面、星盘与人物档案。支持手机和电脑横竖屏、本地运行及单实例 Docker 部署。
 
-项目仓库：[someone97421/tarot-master](https://github.com/someone97421/tarot-master)。用户端入口为 `/`，管理端入口为 `/#/admin`；模型配置仅对管理员开放。
+项目仓库：[someone97421/Mysterious-Realm](https://github.com/someone97421/Mysterious-Realm)。用户端入口为 `/`，管理端入口为 `/#/admin`；模型配置仅对管理员开放。
 
 技术栈：React、TypeScript、Vite、CSS 3D、FastAPI、SQLite。模型接口支持 OpenAI Chat Completions、OpenAI Responses 和 Anthropic Messages。
 
@@ -24,8 +24,8 @@
 ## 获取源码
 
 ```sh
-git clone https://github.com/someone97421/tarot-master.git
-cd tarot-master
+git clone https://github.com/someone97421/Mysterious-Realm.git
+cd Mysterious-Realm
 ```
 
 仓库包含源码、依赖锁文件和完整牌面素材。运行时数据库、用户上传、模型密钥、依赖目录及前端构建产物不纳入版本控制；从仓库克隆后，按下方步骤构建或使用 Docker。
@@ -42,7 +42,7 @@ docker compose up --build
 
 命令保持前台运行，按 Ctrl+C 停止。需要移除容器时执行 `docker compose down`，主机 `data/` 目录仍保留。
 
-若修改端口，将 `.env.example` 复制为 `.env`，修改 `TAROT_PORT`。HTTPS 反向代理部署时，可将 `TAROT_COOKIE_SECURE` 设为 `true`；普通本地 HTTP 保持 `false`。
+若修改端口，将 `.env.example` 复制为 `.env`，修改 `XINGWEI_PORT`。HTTPS 反向代理部署时，可将 `XINGWEI_COOKIE_SECURE` 设为 `true`；普通本地 HTTP 保持 `false`。现有 `TAROT_*` 环境变量仍可作为兼容回退。
 
 容器访问宿主机模型服务时，Docker Desktop 通常使用 `host.docker.internal`，例如 `http://host.docker.internal:11434/v1`。Linux 按实际网络配置宿主机地址。模型接入点应指向容器能访问的地址。
 

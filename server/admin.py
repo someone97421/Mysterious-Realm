@@ -1,3 +1,4 @@
+import shutil
 import sqlite3
 import time
 from collections import defaultdict
@@ -6,9 +7,9 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import ValidationError
 
-from . import auth, db, llm
-from .config import UPLOAD_DIR
-from .schemas import ModelConfig, UserCreate, UserPatch
+from . import auth, db, llm, settings as astrology_settings
+from .config import DATA_DIR, UPLOAD_DIR
+from .schemas import AstrologyServiceInput, AstrologySettingsPatch, ModelConfig, UserCreate, UserPatch
 
 router = APIRouter(prefix="/api/admin", dependencies=[Depends(auth.administrator)])
 
@@ -16,8 +17,21 @@ router = APIRouter(prefix="/api/admin", dependencies=[Depends(auth.administrator
 def model_public(row):
     result = {key: value for key, value in row.items() if key != "api_key"}
     result.setdefault("reasoning_field", "")
-    result.update(has_api_key=bool(row["api_key"]), supports_images=bool(row["supports_images"]), is_default=bool(row["is_default"]))
+    result.update(
+        has_api_key=bool(row["api_key"]),
+        supports_images=bool(row["supports_images"]),
+        is_default=bool(row["is_default"]),
+        mode_scope=row.get("mode_scope") or "both",
+        is_default_tarot=bool(row.get("is_default_tarot")),
+        is_default_astrology=bool(row.get("is_default_astrology")),
+    )
     return result
+
+
+def supports_mode(model, mode):
+    return model.get("mode_scope", "both") in ("both", mode)
+
+
 
 
 def get_model(model_id):
@@ -86,6 +100,7 @@ def delete_user(user_id: str, admin=Depends(auth.administrator)):
         raise HTTPException(404, "账号不存在")
     for file in files:
         (UPLOAD_DIR / file["filename"]).unlink(missing_ok=True)
+    shutil.rmtree(DATA_DIR / "astro-cache" / user_id, ignore_errors=True)
     return {"ok": True}
 
 
@@ -103,8 +118,14 @@ def create_model(body: ModelConfig):
         connection.execute("BEGIN IMMEDIATE")
         first = not connection.execute("SELECT 1 FROM models LIMIT 1").fetchone()
         values["is_default"] = bool(first or body.is_default)
+        values["is_default_tarot"] = bool(body.is_default_tarot or first) and supports_mode(values, "tarot")
+        values["is_default_astrology"] = bool(body.is_default_astrology or first) and supports_mode(values, "astrology")
         if values["is_default"]:
             connection.execute("UPDATE models SET is_default=0")
+        if values["is_default_tarot"]:
+            connection.execute("UPDATE models SET is_default_tarot=0")
+        if values["is_default_astrology"]:
+            connection.execute("UPDATE models SET is_default_astrology=0")
         columns = ",".join(values)
         connection.execute(f"INSERT INTO models ({columns}) VALUES ({','.join('?' for _ in values)})", tuple(values.values()))
     return model_public(get_model(values["id"]))
@@ -124,17 +145,31 @@ def update_model(model_id: str, body: dict):
         connection.execute("BEGIN IMMEDIATE")
         if values["is_default"]:
             connection.execute("UPDATE models SET is_default=0")
+        if values["is_default_tarot"]:
+            connection.execute("UPDATE models SET is_default_tarot=0")
+        if values["is_default_astrology"]:
+            connection.execute("UPDATE models SET is_default_astrology=0")
         connection.execute("UPDATE models SET " + ",".join(f"{key}=?" for key in values) + " WHERE id=?", (*values.values(), model_id))
     return model_public(get_model(model_id))
 
 
 @router.post("/models/{model_id}/default")
-def set_default(model_id: str):
-    get_model(model_id)
+def set_default(model_id: str, body: dict | None = None):
+    model = get_model(model_id)
+    mode = (body or {}).get("mode", "global")
+    if mode not in {"global", "tarot", "astrology"}:
+        raise HTTPException(422, "默认模型模式无效")
+    if mode != "global" and not supports_mode(model, mode):
+        raise HTTPException(400, "该模型未绑定当前模式")
     with db.connect() as connection:
         connection.execute("BEGIN IMMEDIATE")
-        connection.execute("UPDATE models SET is_default=0")
-        connection.execute("UPDATE models SET is_default=1 WHERE id=?", (model_id,))
+        if mode == "global":
+            connection.execute("UPDATE models SET is_default=0")
+            connection.execute("UPDATE models SET is_default=1 WHERE id=?", (model_id,))
+        else:
+            field = "is_default_tarot" if mode == "tarot" else "is_default_astrology"
+            connection.execute(f"UPDATE models SET {field}=0")
+            connection.execute(f"UPDATE models SET {field}=1 WHERE id=?", (model_id,))
     return model_public(get_model(model_id))
 
 
@@ -189,3 +224,43 @@ def stats(days: int = Query(30, ge=1, le=366), user_id: str = "", model_id: str 
     return {"totals": aggregate(rows), "by_user": grouped("user_id", "username"),
             "by_model": grouped("model_id", "model_name"), "daily": grouped("day"),
             "recent": [{**row, "estimated": bool(row["estimated"])} for row in rows[:100]]}
+
+@router.get("/astrology")
+def get_astrology_settings():
+    return astrology_settings.public_settings()
+
+
+@router.put("/astrology")
+def update_astrology_settings(body: AstrologySettingsPatch, admin=Depends(auth.administrator)):
+    return astrology_settings.save_settings(body)
+
+
+@router.post("/astrology/services")
+def create_astrology_service(body: AstrologyServiceInput):
+    return astrology_settings.create_service(body)
+
+
+@router.put("/astrology/services/{service_id}")
+def update_astrology_service(service_id: str, body: AstrologyServiceInput):
+    result = astrology_settings.update_service(service_id, body)
+    if not result:
+        raise HTTPException(404, "占星服务配置不存在")
+    return result
+
+
+@router.delete("/astrology/services/{service_id}")
+def delete_astrology_service(service_id: str):
+    if not astrology_settings.delete_service(service_id):
+        raise HTTPException(404, "占星服务配置不存在")
+    return {"ok": True}
+
+
+@router.get("/astrology/usage")
+def astrology_usage():
+    rows = db.all_rows("SELECT id,tool,provider,service_name,attempt,status,credits,cache_hit,created_at,error_code FROM tool_runs ORDER BY created_at DESC LIMIT 100")
+    totals = db.one("SELECT COUNT(*) AS calls, SUM(credits) AS credits, SUM(CASE WHEN credits IS NULL THEN 1 ELSE 0 END) AS unknown_calls, COALESCE(SUM(cache_hit),0) AS cache_hits FROM tool_runs")
+    return {
+        "recent": [{**row, "cache_hit": bool(row["cache_hit"])} for row in rows],
+        "totals": {"calls": totals["calls"], "credits": None if totals["unknown_calls"] else totals["credits"] or 0,
+                   "cache_hits": totals["cache_hits"]},
+    }

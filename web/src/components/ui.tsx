@@ -21,8 +21,8 @@ export function Brand({ compact = false }: { compact?: boolean }) {
     <div className={cx('brand', compact && 'brand--compact')}>
       <span className="brand__sigil" aria-hidden="true"><MoonStar /></span>
       <span className="brand__words">
-        <strong>星帷塔罗</strong>
-        {!compact && <small>ASTRAL VEIL TAROT</small>}
+        <strong>秘域</strong>
+        {!compact && <small>Mysterious Realm</small>}
       </span>
     </div>
   );

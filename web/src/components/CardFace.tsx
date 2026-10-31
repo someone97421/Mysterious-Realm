@@ -59,10 +59,10 @@ export function CardFace({ card, className, showName = true }: {
 
 export function CardBack({ className }: { className?: string }) {
   return (
-    <div className={cx('tarot-card-back', className)} aria-label="星帷牌背">
+    <div className={cx('tarot-card-back', className)} aria-label="秘域牌背">
       <span className="tarot-card-back__ring" aria-hidden="true" />
       <span className="tarot-card-back__moon" aria-hidden="true">☾</span>
-      <small>ASTRAL VEIL</small>
+      <small>Mysterious<br />Realm</small>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-# 星帷塔罗：前后端接口约定
+# 秘域 · Mysterious Realm：前后端接口约定
 
 前端位于 `web/`，React + TypeScript + Vite，开发代理 `/api` 到 `http://127.0.0.1:8000`。后端 Python FastAPI 位于 `server/`。最终产物 `web/dist` 由后端提供静态服务。接口同源，Cookie 会话，前端 fetch 携带 credentials。响应 JSON；错误使用 `{detail: string}`。时间均为 ISO UTC。
 

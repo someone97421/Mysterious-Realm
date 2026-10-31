@@ -1,28 +1,26 @@
 import {
   LogOut,
-  Check,
   ImagePlus,
   LoaderCircle,
   Menu,
-  MessageCircleMore,
   MoonStar,
-  Pencil,
   Plus,
   Send,
   ShieldCheck,
   Sparkles,
   Square,
   Stars,
-  Trash2,
   X,
 } from 'lucide-react';
 import { Fragment, type FormEvent, type KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { api, jsonBody, postSSE } from '../api';
-import type { AppConfig, Conversation, ConversationDetail, Draw, ImageAsset, LengthMode, Message, Reading, User } from '../types';
+import type { AppConfig, Conversation, ConversationDetail, Draw, ImageAsset, LengthMode, Message, Mode, TarotReading, User } from '../types';
 import { cx, errorMessage, formatDate, isAbortError } from '../utils';
 import { Ceremony } from './Ceremony';
 import { DrawPanel } from './DrawPanel';
 import { Brand, Button, ConfirmDialog, Field, IconButton, InlineNotice, LoadingBlock, Modal } from './ui';
+import { ModeSwitcher } from './ModeSwitcher';
+import { ConversationCard } from './ConversationCard';
 import { Reasoning } from './Reasoning';
 interface Draft {
   text: string;
@@ -35,7 +33,7 @@ interface StreamState {
   status: string;
   text: string;
   reasoning: string;
-  reading?: Reading;
+  reading?: TarotReading;
   error: string;
   drawId?: string;
   lengthMode?: LengthMode;
@@ -54,18 +52,24 @@ const emptyDraft: Draft = { text: '', images: [] };
 const suggestions = ['我该如何看待当下的关系？', '最近的事业方向有什么启示？', '为我梳理此刻的内心能量'];
 
 function safeAssistantText(content: string, reading = false): string {
-  if (/^\s*[\[{]/.test(content)) return reading ? '详细解读将整理在下方牌阵中。' : '星帷已整理好回应，请继续查看下方内容。';
+  if (/^\s*[\[{]/.test(content)) return reading ? '详细解读将整理在下方牌阵中。' : '回应已整理，请继续查看下方内容。';
   return content;
 }
 
-export function Chat({ user, config, onLogout, onAdmin }: {
+export function Chat({ user, config, onLogout, onAdmin, mode, initialConversationId, onOpenConversation, onSwitchMode }: {
   user: User;
   config: AppConfig;
   onLogout: () => void;
   onAdmin: () => void;
+  mode: Mode;
+  initialConversationId?: string | null;
+  onOpenConversation: (conversation: Conversation) => void;
+  onSwitchMode: (mode: Mode) => Promise<void>;
 }) {
-  const storageKey = `xingwei.active.${user.id}`;
-  const lengthStorageKey = `xingwei.length.${user.id}`;
+  const storageKey = `xingwei.active.${user.id}.${mode}`;
+  const modelReady = mode === 'tarot' ? Boolean(config.tarot_model_ready ?? config.model_ready) : Boolean(config.astrology_model_ready ?? config.model_ready);
+  const supportsImages = mode === 'tarot' ? Boolean(config.tarot_supports_images ?? config.supports_images) : Boolean(config.astrology_supports_images ?? config.supports_images);
+  const lengthStorageKey = `xingwei.length.${user.id}.${mode}`;
   const [lengthMode, setLengthMode] = useState<LengthMode>(() => localStorage.getItem(lengthStorageKey) === 'detailed' ? 'detailed' : 'concise');
   const selectLengthMode = (mode: LengthMode) => {
     setLengthMode(mode);
@@ -74,15 +78,7 @@ export function Chat({ user, config, onLogout, onAdmin }: {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState('');
-  const [activeId, setActiveId] = useState<string | null>(() => {
-    const fresh = sessionStorage.getItem('xingwei.fresh-login') === user.id;
-    if (fresh) {
-      sessionStorage.removeItem('xingwei.fresh-login');
-      localStorage.removeItem(storageKey);
-      return null;
-    }
-    return localStorage.getItem(storageKey);
-  });
+  const [activeId, setActiveId] = useState<string | null>(() => initialConversationId === undefined ? localStorage.getItem(storageKey) : initialConversationId);
   const [details, setDetails] = useState<Record<string, ConversationDetail>>({});
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailErrors, setDetailErrors] = useState<Record<string, string>>({});
@@ -92,7 +88,13 @@ export function Chat({ user, config, onLogout, onAdmin }: {
   const [streams, setStreams] = useState<Record<string, StreamState>>({});
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [ceremony, setCeremony] = useState<Draw | null>(null);
-  const [renaming, setRenaming] = useState(false);
+  const [renaming, setRenaming] = useState<Conversation | null>(null);
+  useEffect(() => {
+    if (initialConversationId === undefined) return;
+    setActiveId(initialConversationId);
+    if (initialConversationId) localStorage.setItem(storageKey, initialConversationId);
+    else localStorage.removeItem(storageKey);
+  }, [initialConversationId, storageKey]);
   const [renameValue, setRenameValue] = useState('');
   const [renameSaving, setRenameSaving] = useState(false);
   const [renameError, setRenameError] = useState('');
@@ -117,6 +119,7 @@ export function Chat({ user, config, onLogout, onAdmin }: {
   const currentDetail = activeId ? details[activeId] : undefined;
   const currentStream = activeId ? streams[activeId] : undefined;
   const currentUploading = uploading[activeKey] ?? 0;
+  const anyGenerating = creating || requests.current.size > 0 || Object.values(streams).some((stream) => stream.active);
 
   const refreshConversations = useCallback(async () => {
     try {
@@ -184,6 +187,14 @@ export function Chat({ user, config, onLogout, onAdmin }: {
   }, []);
 
   const selectConversation = (id: string | null) => {
+    if (id) {
+      const target = conversations.find((conversation) => conversation.id === id);
+      if (target && target.mode !== mode) {
+        setSidebarOpen(false);
+        onOpenConversation(target);
+        return;
+      }
+    }
     followOutput.current = true;
     setActiveId(id);
     setSidebarOpen(false);
@@ -255,7 +266,7 @@ export function Chat({ user, config, onLogout, onAdmin }: {
     lastChat.current[cid] = { content, imageIds, lengthMode: requestLengthMode };
     const temporaryId = `stream-assistant-${cid}`;
     followOutput.current = true;
-    setStream(cid, { active: true, kind: 'chat', status: '正在连接星帷', text: '', reasoning: '', error: '', drawId: undefined });
+    setStream(cid, { active: true, kind: 'chat', status: '正在准备回应', text: '', reasoning: '', error: '', drawId: undefined });
     mutateDetail(cid, (detail) => ({
       ...detail,
       messages: [...detail.messages.filter((message) => message.id !== temporaryId), {
@@ -265,6 +276,7 @@ export function Chat({ user, config, onLogout, onAdmin }: {
         images: [],
         created_at: new Date().toISOString(),
         kind: 'chat',
+        profiles: [],
       }],
     }));
     try {
@@ -318,7 +330,7 @@ export function Chat({ user, config, onLogout, onAdmin }: {
 
   const sendMessage = async (event?: FormEvent) => {
     event?.preventDefault();
-    if (!config.model_ready || creating || currentStream?.active || currentUploading > 0) return;
+    if (!modelReady || creating || currentStream?.active || currentUploading > 0) return;
     const content = draft.text.trim();
     const images = draft.images;
     if (!content && images.length === 0) return;
@@ -330,10 +342,10 @@ export function Chat({ user, config, onLogout, onAdmin }: {
     try {
       if (!cid) {
         setCreating(true);
-        const conversation = await api<Conversation>('/api/conversations', { method: 'POST', body: jsonBody({}) });
+        const conversation = await api<Conversation>('/api/conversations', { method: 'POST', body: jsonBody({ mode }) });
         cid = conversation.id;
         setConversations((previous) => [conversation, ...previous]);
-        const blank: ConversationDetail = { conversation, messages: [], draws: [] };
+        const blank: ConversationDetail = { conversation, messages: [], draws: [], charts: [], progress: [], active: false };
         setDetails((previous) => ({ ...previous, [conversation.id]: blank }));
         if (activeIdRef.current === null) {
           setActiveId(cid);
@@ -350,6 +362,7 @@ export function Chat({ user, config, onLogout, onAdmin }: {
         images,
         created_at: new Date().toISOString(),
         kind: 'chat',
+        profiles: [],
       };
       upsertMessage(targetId, optimistic);
       await runChatStream(targetId, content, images.map((image) => image.id), lengthMode, optimisticUserId);
@@ -375,7 +388,7 @@ export function Chat({ user, config, onLogout, onAdmin }: {
         signal: controller.signal,
         onEvent: (event, payload) => {
           if (event === 'status') setStream(cid, { status: (payload as { text: string }).text });
-          if (event === 'reading_preview') setStream(cid, { reading: payload as Reading });
+          if (event === 'reading_preview') setStream(cid, { reading: payload as TarotReading });
           if (event === 'reasoning') {
             const text = (payload as { text: string }).text;
             appendStream(cid, 'reasoning', text);
@@ -406,7 +419,7 @@ export function Chat({ user, config, onLogout, onAdmin }: {
   };
 
   const uploadFiles = async (files: FileList | null) => {
-    if (!files || !config.supports_images) return;
+    if (!files || !supportsImages) return;
     const key = activeKey;
     const existing = drafts[key]?.images ?? [];
     const available = Math.max(0, 4 - existing.length);
@@ -448,14 +461,14 @@ export function Chat({ user, config, onLogout, onAdmin }: {
 
   const saveTitle = async (event: FormEvent) => {
     event.preventDefault();
-    if (!activeId || !renameValue.trim()) return;
+    if (!renaming || !renameValue.trim()) return;
     setRenameSaving(true);
     setRenameError('');
     try {
-      const conversation = await api<Conversation>(`/api/conversations/${activeId}`, { method: 'PATCH', body: jsonBody({ title: renameValue.trim() }) });
+      const conversation = await api<Conversation>(`/api/conversations/${renaming.id}`, { method: 'PATCH', body: jsonBody({ title: renameValue.trim() }) });
       setConversations((previous) => previous.map((item) => item.id === conversation.id ? conversation : item));
-      mutateDetail(activeId, (detail) => ({ ...detail, conversation }));
-      setRenaming(false);
+      mutateDetail(renaming.id, (detail) => ({ ...detail, conversation }));
+      setRenaming(null);
     } catch (reason) {
       setRenameError(errorMessage(reason));
     } finally {
@@ -474,7 +487,7 @@ export function Chat({ user, config, onLogout, onAdmin }: {
     requests.current.delete(id);
     delete lastChat.current[id];
     setCeremony((current) => current?.conversation_id === id ? null : current);
-    if (activeIdRef.current === id) setRenaming(false);
+    setRenaming((current) => current?.id === id ? null : current);
   };
 
   const isConversationGenerating = (id: string) => Boolean(streams[id]?.active || requests.current.has(id));
@@ -559,34 +572,24 @@ export function Chat({ user, config, onLogout, onAdmin }: {
         {listLoading && <LoadingBlock />}
         {!listLoading && listError && <div className="sidebar-error"><span>{listError}</span><Button variant="ghost" onClick={() => { setListLoading(true); void refreshConversations(); }}>重试</Button></div>}
         {!listLoading && !listError && conversations.length === 0 && <p className="sidebar-empty">第一段星轨，正等待落笔。</p>}
-        {conversations.map((conversation, index) => {
-          const deleting = isConversationGenerating(conversation.id);
-          const deleteError = deleteErrors[conversation.id];
-          return (
-            <div className="conversation-row" key={conversation.id} style={{ '--item-index': Math.min(index, 8) } as React.CSSProperties}>
-              <button
-                className={cx('conversation-item', activeId === conversation.id && 'is-active')}
-                onClick={() => selectConversation(conversation.id)}
-              >
-                <MessageCircleMore />
-                <span><strong>{conversation.title || '未命名对话'}</strong><small className={deleteError ? 'conversation-item__error' : undefined}>{deleteError || formatDate(conversation.updated_at, true)}</small></span>
-                {streams[conversation.id]?.active && <i className="conversation-item__live" aria-label="正在回应" />}
-                {activeId === conversation.id && <Check className="conversation-item__check" />}
-              </button>
-              <IconButton
-                className="conversation-item__delete"
-                label={deleting ? '生成中，暂不可删除' : '删除对话'}
-                disabled={deleting || deleteSaving}
-                onClick={() => openDelete(conversation)}
-              ><Trash2 /></IconButton>
-            </div>
-          );
-        })}
+        {conversations.map((conversation, index) => <ConversationCard
+          key={conversation.id}
+          conversation={conversation}
+          index={index}
+          selected={activeId === conversation.id}
+          generating={isConversationGenerating(conversation.id)}
+          disabled={anyGenerating && conversation.mode !== mode}
+          actionsDisabled={deleteSaving || renameSaving}
+          error={deleteErrors[conversation.id]}
+          onOpen={() => selectConversation(conversation.id)}
+          onRename={() => { setRenaming(conversation); setRenameValue(conversation.title); setRenameError(''); }}
+          onDelete={() => openDelete(conversation)}
+        />)}
       </div>
       <div className="sidebar__footer">
         <div className="user-chip"><span>{user.display_name.slice(0, 1)}</span><div><strong>{user.display_name}</strong><small>@{user.username}</small></div></div>
-        {user.role === 'admin' && <IconButton label="进入星帷管理台" onClick={onAdmin}><ShieldCheck /></IconButton>}
-        <IconButton label="退出登录" onClick={onLogout}><LogOut /></IconButton>
+        {user.role === 'admin' && <IconButton label="进入秘域管理台" disabled={anyGenerating} onClick={onAdmin}><ShieldCheck /></IconButton>}
+        <IconButton label="退出登录" disabled={anyGenerating} onClick={onLogout}><LogOut /></IconButton>
       </div>
     </>
   );
@@ -598,10 +601,10 @@ export function Chat({ user, config, onLogout, onAdmin }: {
       <section className="chat-main">
         <header className="chat-header">
           <IconButton className="chat-header__menu" label="打开历史对话" onClick={() => setSidebarOpen(true)}><Menu /></IconButton>
-          <div className="chat-header__title"><span className="eyebrow">{activeId ? '星轨回溯' : '此刻 · 新的篇章'}</span><h1>{currentDetail?.conversation.title || '与星帷对话'}</h1></div>
+          <div className="chat-header__title"><span className="eyebrow">{activeId ? '塔罗 · 回望与发现' : '塔罗 · 此刻起牌'}</span><h1>{currentDetail?.conversation.title || '在牌面之间，遇见自己'}</h1></div>
+          <ModeSwitcher mode={mode} onSwitch={onSwitchMode} disabled={anyGenerating} />
           <div className="chat-header__actions">
-            {activeId && <IconButton label="重命名对话" onClick={() => { setRenameValue(currentDetail?.conversation.title ?? ''); setRenameError(''); setRenaming(true); }}><Pencil /></IconButton>}
-            <span className="presence"><i />星帷在此</span>
+            <span className="presence"><i />静候你的提问</span>
           </div>
         </header>
         <div className="chat-scroll" ref={scrollContainer} onScroll={(event) => {
@@ -613,19 +616,19 @@ export function Chat({ user, config, onLogout, onAdmin }: {
               <section className="welcome">
                 <div className="welcome__sigil"><MoonStar /><span /></div>
                 <span className="eyebrow">THE STARS ARE LISTENING</span>
-                <h2>今夜，什么萦绕在你心间？</h2>
+                <h2>此刻，什么萦绕在你心间？</h2>
                 <p>不必组织完美的语言，从这里开始就好。</p>
                 <div className="welcome__suggestions">{suggestions.map((suggestion) => <button key={suggestion} onClick={() => updateDraft('new', { text: suggestion })}><Sparkles />{suggestion}</button>)}</div>
               </section>
             )}
             {activeId && detailLoading && !currentDetail && <LoadingBlock className="chat-loading" />}
             {activeId && detailErrors[activeId] && !currentDetail && <div className="detail-error"><InlineNotice tone="error">{detailErrors[activeId]}</InlineNotice><Button variant="secondary" onClick={() => void loadConversation(activeId)}>重新加载</Button></div>}
-            {activeId && currentDetail && timeline.length === 0 && <div className="continuation"><Stars /><h2>让这段星轨继续</h2><p>写下你的问题，星帷会在这里回应。</p></div>}
+            {activeId && currentDetail && timeline.length === 0 && <div className="continuation"><Stars /><h2>让这段探索继续</h2><p>写下你的问题，让牌面带来新的视角。</p></div>}
             {timeline.map((item) => item.type === 'message' ? (
               <article className={cx('message', `message--${item.message.role}`)} key={item.key}>
                 <div className="message__avatar">{item.message.role === 'assistant' ? <MoonStar /> : user.display_name.slice(0, 1)}</div>
                 <div className="message__body">
-                  <div className="message__meta"><strong>{item.message.role === 'assistant' ? '星帷' : user.display_name}</strong><time>{formatDate(item.message.created_at, true)}</time>{item.message.id.startsWith('stream-') && currentStream?.active && <span>{currentStream.status || '回应中'}</span>}</div>
+                  <div className="message__meta"><strong>{item.message.role === 'assistant' ? '秘域' : user.display_name}</strong><time>{formatDate(item.message.created_at, true)}</time>{item.message.id.startsWith('stream-') && currentStream?.active && <span>{currentStream.status || '回应中'}</span>}</div>
                   {item.message.images.length > 0 && <div className="message__images">{item.message.images.map((image) => <a href={image.url} target="_blank" rel="noreferrer" key={image.id}><img src={image.url} alt={image.original_name} /></a>)}</div>}
                   {item.message.role === 'assistant' && <Reasoning text={item.message.reasoning} active={item.message.id.startsWith('stream-') && currentStream?.active} />}
                   <div className="message__content">{item.message.content ? (item.message.role === 'assistant' ? safeAssistantText(item.message.content, item.message.kind === 'reading') : item.message.content) : (item.message.id.startsWith('stream-') ? <span className="thinking"><i /><i /><i /></span> : null)}</div>
@@ -655,7 +658,7 @@ export function Chat({ user, config, onLogout, onAdmin }: {
           </div>
         </div>
         <footer className="composer-wrap">
-          {!config.model_ready && <div className="model-hint"><MoonStar />尚未配置默认模型，请联系管理员点亮星帷。</div>}
+          {!modelReady && <div className="model-hint"><MoonStar />当前模式尚未配置可用模型，请联系管理员。</div>}
           {draftErrors[activeKey] && <div className="composer-error" role="alert">{draftErrors[activeKey]}<IconButton label="关闭错误" onClick={() => setDraftErrors((previous) => ({ ...previous, [activeKey]: '' }))}><X /></IconButton></div>}
           {(draft.images.length > 0 || currentUploading > 0) && <div className="upload-previews">{draft.images.map((image) => <div key={image.id}><img src={image.url} alt={image.original_name} /><IconButton label={`移除 ${image.original_name}`} onClick={() => updateDraft(activeKey, { images: draft.images.filter((item) => item.id !== image.id) })}><X /></IconButton></div>)}{currentUploading > 0 && <span className="uploading-tile"><LoaderCircle className="spin" />{currentUploading} 张上传中</span>}</div>}
           <form className="composer" onSubmit={sendMessage}>
@@ -663,30 +666,30 @@ export function Chat({ user, config, onLogout, onAdmin }: {
               value={draft.text}
               onChange={(event) => updateDraft(activeKey, { text: event.target.value })}
               onKeyDown={onComposerKeyDown}
-              placeholder="把心事告诉星帷…"
+              placeholder="写下你的问题或心事…"
               aria-label="对话内容"
               rows={1}
               maxLength={12000}
             />
             <input ref={fileInput} className="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={(event) => { void uploadFiles(event.target.files); event.target.value = ''; }} />
             <div className="composer__tools">
-              <IconButton type="button" label={config.supports_images ? `上传图片，单张不超过 ${config.max_upload_mb}MB` : '当前模型不支持图片'} disabled={!config.supports_images || draft.images.length >= 4 || currentUploading > 0} onClick={() => fileInput.current?.click()}><ImagePlus /></IconButton>
+              <IconButton type="button" label={supportsImages ? `上传图片，单张不超过 ${config.max_upload_mb}MB` : '当前模式模型不支持图片'} disabled={!supportsImages || draft.images.length >= 4 || currentUploading > 0} onClick={() => fileInput.current?.click()}><ImagePlus /></IconButton>
               <div className="composer__length" role="group" aria-label="回复篇幅">
                 <button type="button" aria-pressed={lengthMode === 'concise'} data-tooltip="简练：突出重点，缩短回复与解读" onClick={() => selectLengthMode('concise')}>简练</button>
                 <button type="button" aria-pressed={lengthMode === 'detailed'} data-tooltip="详细：充分展开回复与解读" onClick={() => selectLengthMode('detailed')}>详细</button>
               </div>
               <span className="composer__hint">Enter 发送 · Shift + Enter 换行</span>
             </div>
-            {currentStream?.active ? <IconButton type="button" className="composer__send composer__send--stop" label="停止等待" onClick={cancelStream}><Square /></IconButton> : <IconButton className="composer__send" label="发送消息" type="submit" disabled={creating || currentUploading > 0 || !config.model_ready || (!draft.text.trim() && !draft.images.length)}>{creating ? <LoaderCircle className="spin" /> : <Send />}</IconButton>}
+            {currentStream?.active ? <IconButton type="button" className="composer__send composer__send--stop" label="停止等待" onClick={cancelStream}><Square /></IconButton> : <IconButton className="composer__send" label="发送消息" type="submit" disabled={creating || currentUploading > 0 || !modelReady || (!draft.text.trim() && !draft.images.length)}>{creating ? <LoaderCircle className="spin" /> : <Send />}</IconButton>}
           </form>
         </footer>
       </section>
       {ceremony && <Ceremony key={ceremony.id} draw={ceremony} conversationId={ceremony.conversation_id} onRevealed={upsertDraw} onFinish={(draw) => { upsertDraw(draw); setCeremony(null); }} onClose={() => setCeremony(null)} />}
-      {renaming && activeId && (
-        <Modal title="为这段星轨命名" onClose={() => setRenaming(false)} closeDisabled={renameSaving} className="modal--small">
+      {renaming && (
+        <Modal title="为这段星轨命名" onClose={() => setRenaming(null)} closeDisabled={renameSaving} className="modal--small">
           <form onSubmit={saveTitle}>
             <Field label="对话名称" error={renameError}><input value={renameValue} onChange={(event) => setRenameValue(event.target.value)} required maxLength={80} placeholder="输入新名称" /></Field>
-            <div className="modal__actions"><Button type="button" variant="ghost" onClick={() => setRenaming(false)}>取消</Button><Button type="submit" loading={renameSaving}>保存名称</Button></div>
+            <div className="modal__actions"><Button type="button" variant="ghost" onClick={() => setRenaming(null)}>取消</Button><Button type="submit" loading={renameSaving}>保存名称</Button></div>
           </form>
         </Modal>
       )}

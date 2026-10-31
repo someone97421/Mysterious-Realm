@@ -1,6 +1,6 @@
 import { ArrowLeft, ArrowRight, BookOpen, Expand, Layers3, Rotate3D, Sparkles, WandSparkles } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import type { CardReading, Draw, Reading, TarotCard } from '../types';
+import type { TarotCardReading, Draw, TarotReading, TarotCard } from '../types';
 import { Button, IconButton, Modal } from './ui';
 import { CardBack, CardFace } from './CardFace';
 
@@ -11,9 +11,9 @@ const readingFields = [
   { key: 'advice', label: '建议' },
 ] as const;
 const hasText = (text?: string) => Boolean(text?.trim());
-const hasCardContent = (reading: CardReading) => readingFields.some(({ key }) => hasText(reading[key]));
+const hasCardContent = (reading: TarotCardReading) => readingFields.some(({ key }) => hasText(reading[key]));
 
-function ReadingFields({ reading }: { reading: CardReading }) {
+function ReadingFields({ reading }: { reading: TarotCardReading }) {
   return <dl>{readingFields.filter(({ key }) => hasText(reading[key])).map(({ key, label }) => (
     <div className="reading-reveal" key={key}><dt>{label}</dt><dd>{reading[key]}</dd></div>
   ))}</dl>;
@@ -99,7 +99,7 @@ export function DrawPanel({
   onOpenCeremony: (draw: Draw) => void;
   onInterpret: (draw: Draw) => void;
   interpreting: boolean;
-  streamReading?: Reading;
+  streamReading?: TarotReading;
   streamStatus: string;
   error?: string;
 }) {

@@ -201,7 +201,7 @@ export function Ceremony({ draw, conversationId, onRevealed, onFinish, onClose }
           </div>
           <div className="ceremony-hero-caption" aria-live="polite">
             <strong>{showFace ? `${shownCard?.name_zh} · ${shownCard?.orientation_zh}` : phase === 'lifting' ? '星牌正在苏醒' : phase === 'shuffle' ? '星牌正在交汇' : '聆听直觉的回声'}</strong>
-            <small>{showFace ? shownCard?.position : '✧ ASTRAL VEIL ✧'}</small>
+            <small>{showFace ? shownCard?.position : '✧ Mysterious Realm ✧'}</small>
           </div>
         </div>
         <div className={cx('ceremony-deck', !deckVisible && 'is-veiled')}>

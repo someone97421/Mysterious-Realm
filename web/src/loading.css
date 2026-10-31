@@ -1,0 +1,44 @@
+.app-loading { position: relative; isolation: isolate; min-height: 100dvh; display: grid; place-items: center; padding: 48px 24px 70px; overflow: hidden; color: #ede6fa; background: radial-gradient(ellipse at 38% 40%, #55337a29, transparent 48%), radial-gradient(ellipse at 68% 55%, #285b8229, transparent 48%), #0b0c19; text-align: center; }
+.app-loading::before, .app-loading::after { content: ''; position: absolute; z-index: -1; top: 50%; left: 50%; width: min(680px, 140vw); aspect-ratio: 1; border: 1px solid #bda2e60a; border-radius: 50%; transform: translate(-50%, -57%); pointer-events: none; }
+.app-loading::after { width: min(920px, 185vw); border-color: #8db9e609; }
+.loading-sky { position: absolute; z-index: -1; inset: 0; pointer-events: none; mask-image: radial-gradient(ellipse, #000, #0004); }
+.loading-sky > i { position: absolute; left: var(--star-x); top: var(--star-y); width: 2px; height: 2px; border-radius: 50%; background: #c9c3e5; opacity: .3; box-shadow: 0 0 9px #b59bdd70; }
+.loading-sanctuary { display: flex; flex-direction: column; align-items: center; width: min(100%, 480px); }
+.loading-celestial { position: relative; width: clamp(224px, 30vw, 300px); aspect-ratio: 1; flex: none; }
+.loading-celestial__aura { position: absolute; inset: 6%; border-radius: 50%; background: radial-gradient(circle, #c29ae02e, #7a8ed417 40%, transparent 70%); filter: blur(14px); }
+.loading-celestial__wheel { position: absolute; inset: 0; width: 100%; height: 100%; color: #b7b6dd; stroke: #b6a0d75c; stroke-width: .7; }
+.loading-celestial__wheel > circle:nth-child(2) { stroke: #b6a0d721; }
+.loading-celestial__wheel .astro-symbol { color: #b0b7da; opacity: .7; }
+.loading-celestial__orbit { position: absolute; inset: 15% -3%; border: 1px solid #99bce54a; border-radius: 50%; transform: rotate(-30deg) scaleY(.46); }
+.loading-celestial__orbit > i { position: absolute; top: 14%; left: 14%; width: 5px; height: 5px; border-radius: 50%; background: #dce9ff; box-shadow: 0 0 15px 3px #8dbaff80; }
+.loading-celestial__card { position: absolute; top: 31%; left: 24%; display: flex; flex-direction: column; align-items: center; justify-content: space-between; width: 25%; height: 39%; padding: 11px 5px; border: 1px solid #b6a0d763; border-radius: 6px; color: #c2b4e7; background: linear-gradient(145deg, #29203d, #141729); box-shadow: 0 12px 25px #03040b66, inset 0 0 0 3px #111321, inset 0 0 0 4px #b6a0d72a; transform: rotate(-24deg); }
+.loading-celestial__card > span, .loading-celestial__card > small { font-size: 5px; letter-spacing: .12em; }
+.loading-celestial__card > svg { width: 25px; height: 25px; stroke-width: 1; }
+.loading-celestial__card--star { left: 52%; top: 29%; color: #a9c5ed; border-color: #8cbae567; background: linear-gradient(145deg, #20314a, #15172b); transform: rotate(24deg); }
+.loading-celestial__seal { position: absolute; inset: 34%; display: grid; place-items: center; border: 1px solid #ddc79980; border-radius: 50%; color: #e8cf9b; background: radial-gradient(circle at 30% 20%, #3b2b50, #1b1b32); box-shadow: 0 0 0 6px #bda0dc0b, 0 0 35px #b89ad62b, inset 0 0 18px #d3b5ed10; }
+.loading-celestial__seal > svg { width: 47%; height: 47%; stroke-width: 1.15; }
+.loading-celestial__spark { position: absolute; width: 21px; height: 21px; right: 19%; top: 20%; color: #e5d3b1; stroke-width: 1; filter: drop-shadow(0 0 8px #e6c78a66); }
+.loading-identity { display: flex; flex-direction: column; align-items: center; margin-top: 10px; }
+.loading-identity__rule { width: 74px; height: 1px; margin: 6px 0 23px; background: linear-gradient(90deg, transparent, #cdb5ec88, transparent); }
+.loading-identity h1 { margin: 0; padding-left: .3em; font-family: "Songti SC", "STSong", "Noto Serif SC", serif; font-size: clamp(34px, 5vw, 44px); font-weight: 500; line-height: 1.3; letter-spacing: .3em; color: #efe3f9; text-shadow: 0 0 30px #bf9fe22b; }
+.loading-identity__subtitle { margin-top: 13px; padding-left: .26em; color: #9790ae; font-size: 8px; letter-spacing: .26em; }
+.loading-identity > p { margin: 18px 0 0; padding-left: .18em; color: #ada1bf; font-size: 11px; letter-spacing: .18em; }
+.loading-status { display: flex; flex-direction: column; align-items: center; gap: 15px; width: 100%; margin-top: 34px; }
+.loading-status__message { max-width: 100%; color: #b3aec8; font-size: 12px; line-height: 1.8; letter-spacing: .1em; overflow-wrap: anywhere; }
+.loading-status__dots { display: flex; justify-content: center; align-items: center; gap: 7px; height: 8px; }
+.loading-status__dots i { width: 3px; height: 3px; border-radius: 50%; background: #c5ace7; box-shadow: 0 0 8px #bda0df40; }
+.loading-feedback { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; width: 100%; margin-top: 20px; }
+.loading-feedback > .notice { flex-basis: 100%; text-align: center; overflow-wrap: anywhere; }
+.loading-signature { position: absolute; bottom: 27px; left: 24px; right: 24px; color: #655e7b; font-size: 7px; letter-spacing: .3em; text-align: center; }
+.is-loading .loading-celestial__wheel { animation: sanctuary-wheel 90s linear infinite; }
+.is-loading .loading-celestial__aura { animation: sanctuary-breathe 5s ease-in-out infinite; }
+.is-loading .loading-sky > i { animation: sanctuary-twinkle 4s ease-in-out var(--star-delay) infinite; }
+.is-loading .loading-status__dots i { animation: sanctuary-dot 1.6s ease-in-out infinite; }
+.is-loading .loading-status__dots i:nth-child(2) { animation-delay: .2s; }
+.is-loading .loading-status__dots i:nth-child(3) { animation-delay: .4s; }
+@keyframes sanctuary-wheel { to { transform: rotate(360deg); } }
+@keyframes sanctuary-breathe { 0%, 100% { opacity: .65; scale: .96; } 50% { opacity: 1; scale: 1.1; } }
+@keyframes sanctuary-twinkle { 0%, 100% { opacity: .15; } 50% { opacity: .65; } }
+@keyframes sanctuary-dot { 0%, 70%, 100% { opacity: .25; translate: 0 0; } 35% { opacity: 1; translate: 0 -3px; } }
+@media (max-height: 650px) { .app-loading { padding-top: 28px; padding-bottom: 50px; } .loading-celestial { width: 200px; } .loading-identity__rule { margin-bottom: 16px; } .loading-identity h1 { font-size: 32px; } .loading-status { margin-top: 23px; } .loading-signature { bottom: 18px; } }
+@media (prefers-reduced-motion: reduce) { .app-loading *, .app-loading *::before, .app-loading *::after { animation: none !important; } }
