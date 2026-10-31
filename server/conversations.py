@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import json
+import logging
 from time import monotonic
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -9,7 +10,8 @@ from pydantic import ValidationError
 
 from . import auth, db, llm, tarot
 from .context import build_context
-from .schemas import Plan, Reading, ReadingOverview, Rename, SendMessage
+from .config import UPLOAD_DIR
+from .schemas import Plan, Reading, ReadingOverview, Rename, ResponseOptions, SendMessage
 from .streaming import readable_preview, reading_preview
 
 router = APIRouter(prefix="/api/conversations")
@@ -170,6 +172,33 @@ def rename_conversation(conversation_id: str, body: Rename, user=Depends(auth.cu
     return public_conversation(conversation_owned(conversation_id, user))
 
 
+@router.delete("/{conversation_id}")
+async def delete_conversation(conversation_id: str, user=Depends(auth.current_user)):
+    conversation_owned(conversation_id, user)
+    if conversation_id in _busy:
+        raise HTTPException(409, "这个对话正在回应，请先停止生成或等回应结束后删除")
+    files = []
+    with db.connect() as connection:
+        images = set()
+        for row in connection.execute("SELECT images FROM messages WHERE conversation_id=?", (conversation_id,)):
+            images.update(image["id"] for image in json.loads(row["images"]))
+        connection.execute("DELETE FROM conversations WHERE id=? AND user_id=?", (conversation_id, user["id"]))
+        if images:
+            for row in connection.execute("SELECT m.images FROM messages m JOIN conversations c ON c.id=m.conversation_id WHERE c.user_id=?", (user["id"],)):
+                images.difference_update(image["id"] for image in json.loads(row["images"]))
+            for image_id in images:
+                image = connection.execute("SELECT filename FROM uploads WHERE id=? AND user_id=?", (image_id, user["id"])).fetchone()
+                if image:
+                    files.append(UPLOAD_DIR / image["filename"])
+                    connection.execute("DELETE FROM uploads WHERE id=? AND user_id=?", (image_id, user["id"]))
+    for path in files:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            logging.getLogger(__name__).warning("对话已删除，上传文件清理失败", exc_info=True)
+    return {"ok": True}
+
+
 @router.post("/{conversation_id}/messages")
 async def send_message(conversation_id: str, body: SendMessage, user=Depends(auth.current_user)):
     conversation = conversation_owned(conversation_id, user)
@@ -195,7 +224,7 @@ async def send_message(conversation_id: str, body: SendMessage, user=Depends(aut
                         connection.execute("UPDATE conversations SET title=? WHERE id=?", ((body.content or "一封来自画面的祈愿")[:38], conversation_id))
             yield sse("user_message", message)
             yield sse("status", {"text": "正在聆听你的祈愿，整理星象与牌阵…"})
-            context = await build_context(conversation_id, model, user, tarot.PLAN_PROMPT)
+            context = await build_context(conversation_id, model, user, tarot.PLAN_PROMPT + tarot.length_instruction(body.length_mode, "planning"))
             trace = []
             async for event, value in structured(model, user, "planning", context, Plan, trace):
                 if event == "result":
@@ -218,7 +247,7 @@ async def send_message(conversation_id: str, body: SendMessage, user=Depends(aut
                 if trace:
                     trace.append("\n\n——回应——\n\n")
                     yield sse("reasoning", {"text": trace[-1]})
-                context = await build_context(conversation_id, model, user, tarot.VOICE)
+                context = await build_context(conversation_id, model, user, tarot.VOICE + tarot.length_instruction(body.length_mode, "chat"))
                 parts = []
                 async for chunk in llm.stream(model, user, "chat", context, include_reasoning=True):
                     if chunk["type"] == "reasoning":
@@ -263,11 +292,12 @@ def reading_text(draw, reading):
 
 
 @router.post("/{conversation_id}/draws/{draw_id}/interpret")
-async def interpret(conversation_id: str, draw_id: str, user=Depends(auth.current_user)):
+async def interpret(conversation_id: str, draw_id: str, body: ResponseOptions | None = None, user=Depends(auth.current_user)):
     draw = public_draw(draw_owned(conversation_id, draw_id, user))
     if draw["status"] == "proposed":
         raise HTTPException(409, "请先开启抽牌仪式")
     model = default_model() if draw["status"] != "interpreted" else None
+    length_mode = body.length_mode if body else "detailed"
 
     async def events():
         try:
@@ -285,7 +315,7 @@ async def interpret(conversation_id: str, draw_id: str, user=Depends(auth.curren
                     yield sse("status", {"text": f"正在解读第 {start + 1}—{start + len(cards)} 张牌，聆听牌面之间的低语…"})
                     fixed = {"question": draw["question"], "spread_name": draw["spread_name"],
                              "positions": [card["position"] for card in cards], "cards": cards}
-                    context = await build_context(conversation_id, model, user, tarot.READING_PROMPT,
+                    context = await build_context(conversation_id, model, user, tarot.READING_PROMPT + tarot.length_instruction(length_mode, "reading"),
                                                   "本轮只解读以下固定牌面；cards只含本轮ID，保持顺序：\n" + db.dumps(fixed))
                     async for event, value in structured(model, user, "reading", context, Reading, trace,
                                                          [card["id"] for card in cards], all_cards, not multiple_batches):
@@ -300,6 +330,7 @@ async def interpret(conversation_id: str, draw_id: str, user=Depends(auth.curren
                 else:
                     yield sse("status", {"text": "逐牌解读已完成，正在串联整组牌的故事…"})
                     overview_prompt = tarot.VOICE + '\n根据完整牌阵和逐牌要点总结牌际关联与建议，严格返回JSON：{"synthesis":"整组叙事与张力，不重复逐牌解释","actions":["具体行动建议"],"closing":"温柔收束"}。'
+                    overview_prompt += tarot.length_instruction(length_mode, "overview")
                     facts = {"question": draw["question"], "spread_name": draw["spread_name"],
                              "cards": [{"name": card["name_zh"], "orientation": card["orientation_zh"],
                                         "position": card["position"], "meaning": analysis["interpretation"]}

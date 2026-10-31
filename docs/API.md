@@ -16,11 +16,12 @@
 - `POST /api/conversations` `{}` → Conversation。
 - `GET /api/conversations/{id}` → `{conversation, messages: Message[], draws: Draw[]}`。
 - `PATCH /api/conversations/{id}` `{title}` → Conversation。
+- `DELETE /api/conversations/{id}` → `{ok:true}`；仅删除当前账号拥有的对话，级联清理消息和牌阵，并清理不再被其他对话引用的图片；累计用量保留。对话正在生成时返回 409，可停止生成后重试。
 - Conversation: `{id,title,created_at,updated_at}`。
 - Message: `{id,role:'user'|'assistant',content,reasoning:string,images:Image[],created_at,draw_id?:string|null,kind?:'chat'|'reading'|'proposal'}`；reasoning 保存模型接口实际返回的思考内容，旧记录为空。
 - Image: `{id,url,original_name}`。
 - `POST /api/uploads` multipart 字段 `file` → Image；PNG/JPEG/WebP，单张最多 10MB，一条消息最多4张。
-- `POST /api/conversations/{id}/messages` `{content, image_ids:[]}` → SSE，使用 fetch + ReadableStream（POST 不使用 EventSource）。每个事件均为 `event: 名称\ndata: JSON\n\n`。
+- `POST /api/conversations/{id}/messages` `{content, image_ids:[], length_mode?:'concise'|'detailed'}` → SSE，使用 fetch + ReadableStream（POST 不使用 EventSource）。每个事件均为 `event: 名称\ndata: JSON\n\n`。
 - SSE 事件：`user_message` data=Message；`status` data=`{text}`；`delta` data=`{text}`（追加正文）；`preview` data=`{text}`（替换排阵开场的可读预览）；`reading_preview` data=Reading（字段可能为空，以快照方式原位更新解析表格、卡片、综合、行动与结语；重试时保留已完成批次）；`reasoning` data=`{text}`（追加思考，默认折叠展示）；`message` data=最终 Message；`draw` data=Draw；`done` data=`{}`；`error` data=`{message}`。
 - 每15秒发送以 `:` 开头的 SSE 注释心跳；客户端忽略注释块。流结束但既未收到 `done` 也未收到 `error` 时，视为意外中断。
 - 普通聊天返回 assistant message；需要抽牌时先给浪漫开场和牌阵提案，再发 draw。
@@ -30,8 +31,9 @@
 - Card: `{id,name_zh,name_en,arcana:'major'|'minor',suit:string|null,orientation:'upright'|'reversed',orientation_zh,image_url,position}`。
 - Reading: `{cards:[{card_id,imagery,symbolism,interpretation,advice}],synthesis,actions:string[],closing}`。
 - `POST /api/conversations/{cid}/draws/{did}/reveal` `{}` → Draw。真实随机选牌并持久化，重复调用返回原结果，前端负责有仪式感的逐张点选、翻牌。
-- `POST /api/conversations/{cid}/draws/{did}/interpret` `{}` → SSE，事件 status / reading_preview / reasoning / message / draw / done / error 同上。生成中与完成后共用 ReadingDetails 版式，最终 draw.reading 覆盖临时字段并持久化。对应 reading 消息保留供上下文使用，界面不重复渲染正文。重试不重复抽牌。
+- `POST /api/conversations/{cid}/draws/{did}/interpret` `{length_mode?:'concise'|'detailed'}`（也兼容空请求体）→ SSE，事件 status / reading_preview / reasoning / message / draw / done / error 同上。生成中与完成后共用 ReadingDetails 版式，最终 draw.reading 覆盖临时字段并持久化。对应 reading 消息保留供上下文使用，界面不重复渲染正文。重试不重复抽牌。
 - 一个会话可以有多次抽牌；历史恢复后不自动播放已完成仪式。proposed 显示「开启仪式」；drawn 显示牌面并提供继续解读；interpreted 显示完整解析。
+- 篇幅：接口省略 `length_mode` 时默认 `detailed`，保持原有生成行为。前端输入框首次默认「简练」，按账号在当前浏览器记住偏好；每次发送消息或开始解读时携带当前选择，失败重试沿用该次请求的选择。简练模式通过提示词约束开场、聊天、逐牌内容和最终总结，不降低模型输出上限或思考等级；切换不会重写已生成内容。
 - 牌图优先 `/cards/{card_id}.jpg`，索引可用 `/cards/manifest.json`。没有牌图时仍应有精致、可区分牌名的 fallback。
 
 ## 管理（仅 admin）
@@ -56,4 +58,4 @@
 - cache_hit_rate 是 0～1 或 null；接口未报告 cache 就显示「未提供」。统计包含普通聊天、排阵、解读、压缩和连接检查。
 
 ## 体验要求
-中文界面；紫色暗调、神秘浪漫，高品质响应式；手机与电脑横竖屏；提示使用 hint / tooltip，不放大段说明。支持图片上传及预览移除、流式文字、错误重试、取消等待时不自动重复抽牌。管理账号卡片 CRUD，模型 CRUD + 默认设置 +连接检查，统计筛选。抽牌采用 78 张连续可浏览牌池，先选中再确认揭牌，CSS 3D 洗牌与翻牌，固定舞台及操作区；可跳过并支持 reduced-motion。用户界面不能出现模型管理或模型切换控件；管理员可通过独立入口进入后台。
+中文界面；紫色暗调、神秘浪漫，高品质响应式；手机与电脑横竖屏；提示使用 hint / tooltip，不放大段说明。支持图片上传及预览移除、流式文字、错误重试、手动删除历史对话、取消等待时不自动重复抽牌。管理账号卡片 CRUD，模型 CRUD + 默认设置 +连接检查，统计筛选。抽牌采用 78 张连续可浏览牌池，打开后自动洗牌 3 秒，识别滑动与点击后直接抽牌；电脑滚轮可横向浏览牌池，CSS 3D 翻牌，固定舞台及操作区；可跳过并支持 reduced-motion。用户界面不能出现模型管理或模型切换控件；管理员可通过独立入口进入后台。

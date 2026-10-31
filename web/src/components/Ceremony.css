@@ -39,10 +39,10 @@
 .ceremony-stack { position: absolute; inset: 0; z-index: -1; transition: opacity 250ms; }
 .ceremony-stack--one { transform: translate(-9px, 3px) rotate(-9deg); }
 .ceremony-stack--two { transform: translate(9px, 3px) rotate(9deg); }
-.ceremony-stage--choose .ceremony-stack, .ceremony-stage--flipping .ceremony-stack, .ceremony-stage--complete .ceremony-stack { opacity: 0; }
-.is-shuffling .ceremony-stack--one { animation: ceremony-shuffle-left 700ms ease-in-out 2; }
-.is-shuffling .ceremony-stack--two { animation: ceremony-shuffle-right 700ms ease-in-out 2; }
-.is-shuffling .ceremony-hero__inner { animation: ceremony-shuffle-center 700ms ease-in-out 2; }
+.ceremony-stage--choose .ceremony-stack, .ceremony-stage--lifting .ceremony-stack, .ceremony-stage--flipping .ceremony-stack, .ceremony-stage--complete .ceremony-stack { opacity: 0; }
+.is-shuffling .ceremony-stack--one { animation: ceremony-shuffle-left 750ms ease-in-out 4; }
+.is-shuffling .ceremony-stack--two { animation: ceremony-shuffle-right 750ms ease-in-out 4; }
+.is-shuffling .ceremony-hero__inner { animation: ceremony-shuffle-center 750ms ease-in-out 4; }
 .ceremony-stage--flipping .ceremony-orbits { animation: ceremony-reveal-glow 1200ms ease-out; }
 .ceremony-hero-caption { position: absolute; bottom: 0; left: 12px; right: 12px; height: 40px; display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; overflow: hidden; }
 .ceremony-hero-caption strong { color: var(--gold); font-family: "Songti SC", serif; font-size: 16px; font-weight: 500; }
@@ -63,8 +63,6 @@
 .ceremony-slot .tarot-card-back__ring { width: 65%; }
 .ceremony-slot > span { position: absolute; top: 7px; left: 9px; color: var(--gold); font-size: 9px; }
 .ceremony-slot > span svg { width: 13px; height: 13px; }
-.ceremony-slot.is-focused { z-index: 2; transform: translateY(-17px) rotate(0); }
-.ceremony-slot.is-focused > .tarot-card-back { border-color: #ffe4a2; box-shadow: inset 0 0 0 4px #100b1a, inset 0 0 0 5px #f5d896, 0 0 20px #e7c98f66; }
 .ceremony-slot.is-used { transform: translateY(22px); opacity: .18; }
 .ceremony-slot:disabled:not(.is-used) { opacity: .85; }
 .ceremony-slot:focus-visible { z-index: 3; outline: 2px solid var(--gold); outline-offset: 3px; }

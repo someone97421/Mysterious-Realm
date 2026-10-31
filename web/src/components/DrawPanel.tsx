@@ -4,6 +4,21 @@ import type { CardReading, Draw, Reading, TarotCard } from '../types';
 import { Button, IconButton, Modal } from './ui';
 import { CardBack, CardFace } from './CardFace';
 
+const readingFields = [
+  { key: 'imagery', label: '画面' },
+  { key: 'symbolism', label: '象征' },
+  { key: 'interpretation', label: '解析' },
+  { key: 'advice', label: '建议' },
+] as const;
+const hasText = (text?: string) => Boolean(text?.trim());
+const hasCardContent = (reading: CardReading) => readingFields.some(({ key }) => hasText(reading[key]));
+
+function ReadingFields({ reading }: { reading: CardReading }) {
+  return <dl>{readingFields.filter(({ key }) => hasText(reading[key])).map(({ key, label }) => (
+    <div className="reading-reveal" key={key}><dt>{label}</dt><dd>{reading[key]}</dd></div>
+  ))}</dl>;
+}
+
 function EnlargedCard({ card, draw, onSelect, onClose }: { card: TarotCard; draw: Draw; onSelect: (card: TarotCard) => void; onClose: () => void }) {
   const [flipped, setFlipped] = useState(false);
   const index = draw.cards.findIndex((item) => item.id === card.id);
@@ -38,12 +53,7 @@ function EnlargedCard({ card, draw, onSelect, onClose }: { card: TarotCard; draw
         <span>{index + 1} / {draw.cards.length}</span>
         <IconButton label="下一张牌" onClick={() => move(1)} disabled={draw.cards.length < 2}><ArrowRight /></IconButton>
       </div>
-      {analysis && <article className="reading-card"><dl>
-        <div><dt>画面</dt><dd>{analysis.imagery}</dd></div>
-        <div><dt>象征</dt><dd>{analysis.symbolism}</dd></div>
-        <div><dt>解析</dt><dd>{analysis.interpretation}</dd></div>
-        <div><dt>建议</dt><dd>{analysis.advice}</dd></div>
-      </dl></article>}
+      {analysis && hasCardContent(analysis) && <article className="reading-card reading-reveal"><ReadingFields reading={analysis} /></article>}
     </Modal>
   );
 }
@@ -51,45 +61,27 @@ function EnlargedCard({ card, draw, onSelect, onClose }: { card: TarotCard; draw
 function ReadingDetails({ draw, onExpand, pending = false }: { draw: Draw; onExpand: (card: TarotCard) => void; pending?: boolean }) {
   const reading = draw.reading;
   if (!reading) return null;
-  const rows = reading.cards.map((item) => ({
-    item,
+  const rows = reading.cards.map((item, index) => ({
+    item, index,
     card: draw.cards.find((card) => card.id === item.card_id),
-  }));
-  const cardFor = (item: CardReading) => draw.cards.find((card) => card.id === item.card_id);
-  const content = (text: string) => text || <span className="reading-pending" aria-label={pending ? '等待生成' : '尚未生成'}>{pending ? '…' : '—'}</span>;
+  })).filter(({ item }) => hasCardContent(item));
+  const actions = reading.actions.map((text, index) => ({ text, index })).filter(({ text }) => hasText(text));
+  if (!rows.length && !hasText(reading.synthesis) && !actions.length && !hasText(reading.closing)) return null;
 
   return (
     <section className="reading" aria-label="逐牌详细解析" aria-busy={pending}>
-      <div className="reading__heading"><BookOpen /><div><span className="eyebrow">星牌解读</span><h3>每一张牌，都有自己的回声</h3></div></div>
-      <div className="reading-table-wrap">
-        <table className="reading-table">
-          <thead><tr><th>牌位与牌面</th><th>画面</th><th>象征</th><th>详细解析</th><th>行动建议</th></tr></thead>
-          <tbody>{rows.map(({ item, card }, index) => (
-            <tr key={`${item.card_id}-${index}`}>
-              <td>
-                <strong>{card?.position ?? draw.positions[index] ?? `第 ${index + 1} 张`}</strong>
-                <span>{card?.name_zh ?? '星牌'} · {card?.orientation_zh ?? ''}</span>
-                {card && <IconButton label={`放大${card.name_zh}`} onClick={() => onExpand(card)}><Expand /></IconButton>}
-              </td>
-              <td>{content(item.imagery)}</td><td>{content(item.symbolism)}</td><td>{content(item.interpretation)}</td><td>{content(item.advice)}</td>
-            </tr>
-          ))}</tbody>
-        </table>
-      </div>
-      <div className="reading-mobile">
-        {reading.cards.map((item, index) => {
-          const card = cardFor(item);
-          return (
-            <article className="reading-card" key={`${item.card_id}-${index}`}>
-              <header><span>{String(index + 1).padStart(2, '0')}</span><div><small>{card?.position ?? draw.positions[index]}</small><h4>{card?.name_zh ?? '星牌'} · {card?.orientation_zh}</h4></div>{card && <IconButton label="放大牌面" onClick={() => onExpand(card)}><Expand /></IconButton>}</header>
-              <dl><div><dt>画面</dt><dd>{content(item.imagery)}</dd></div><div><dt>象征</dt><dd>{content(item.symbolism)}</dd></div><div><dt>解析</dt><dd>{content(item.interpretation)}</dd></div><div><dt>建议</dt><dd>{content(item.advice)}</dd></div></dl>
-            </article>
-          );
-        })}
-      </div>
-      {(reading.synthesis || pending) && <div className="reading-synthesis"><Sparkles /><div><h3>牌阵综合</h3><p>{content(reading.synthesis)}</p></div></div>}
-      {(reading.actions.length > 0 || pending) && <section className="reading-actions"><h3>带走此刻的微光</h3><ol>{(reading.actions.length ? reading.actions : ['']).map((action, index) => <li key={index}><span>{index + 1}</span>{content(action)}</li>)}</ol></section>}
-      {(reading.closing || pending) && <blockquote className="reading-closing">{content(reading.closing)}</blockquote>}
+      <div className="reading__heading reading-reveal"><BookOpen /><div><span className="eyebrow">星牌解读</span><h3>每一张牌，都有自己的回声</h3></div></div>
+      {rows.length > 0 && <div className="reading-cards">
+        {rows.map(({ item, card, index }) => (
+          <article className="reading-card reading-reveal" key={item.card_id}>
+            <header><span>{String(index + 1).padStart(2, '0')}</span><div><small>{card?.position ?? draw.positions[index]}</small><h4>{card?.name_zh ?? '星牌'} · {card?.orientation_zh}</h4></div>{card && <IconButton label="放大牌面" onClick={() => onExpand(card)}><Expand /></IconButton>}</header>
+            <ReadingFields reading={item} />
+          </article>
+        ))}
+      </div>}
+      {hasText(reading.synthesis) && <div className="reading-synthesis reading-reveal"><Sparkles /><div><h3>牌阵综合</h3><p>{reading.synthesis}</p></div></div>}
+      {actions.length > 0 && <section className="reading-actions reading-reveal"><h3>带走此刻的微光</h3><ol>{actions.map(({ text, index }) => <li className="reading-reveal" key={index}><span>{index + 1}</span>{text}</li>)}</ol></section>}
+      {hasText(reading.closing) && <blockquote className="reading-closing reading-reveal">{reading.closing}</blockquote>}
     </section>
   );
 }

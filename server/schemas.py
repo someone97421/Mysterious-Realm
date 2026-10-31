@@ -87,7 +87,11 @@ class ModelConfig(Input):
         return self
 
 
-class SendMessage(Input):
+class ResponseOptions(Input):
+    length_mode: Literal["concise", "detailed"] = "detailed"
+
+
+class SendMessage(ResponseOptions):
     content: str = Field(default="", max_length=50000)
     image_ids: list[str] = Field(default_factory=list, max_length=4)
 

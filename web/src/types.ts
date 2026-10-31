@@ -60,6 +60,8 @@ export interface CardReading {
   advice: string;
 }
 
+export type LengthMode = 'concise' | 'detailed';
+
 export interface Reading {
   cards: CardReading[];
   synthesis: string;
