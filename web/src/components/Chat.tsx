@@ -672,8 +672,8 @@ export function Chat({ user, config, onLogout, onAdmin }: {
             <div className="composer__tools">
               <IconButton type="button" label={config.supports_images ? `上传图片，单张不超过 ${config.max_upload_mb}MB` : '当前模型不支持图片'} disabled={!config.supports_images || draft.images.length >= 4 || currentUploading > 0} onClick={() => fileInput.current?.click()}><ImagePlus /></IconButton>
               <div className="composer__length" role="group" aria-label="回复篇幅">
-                <button type="button" aria-pressed={lengthMode === 'concise'} title="简练：突出重点，缩短回复与解读" onClick={() => selectLengthMode('concise')}>简练</button>
-                <button type="button" aria-pressed={lengthMode === 'detailed'} title="详细：充分展开回复与解读" onClick={() => selectLengthMode('detailed')}>详细</button>
+                <button type="button" aria-pressed={lengthMode === 'concise'} data-tooltip="简练：突出重点，缩短回复与解读" onClick={() => selectLengthMode('concise')}>简练</button>
+                <button type="button" aria-pressed={lengthMode === 'detailed'} data-tooltip="详细：充分展开回复与解读" onClick={() => selectLengthMode('detailed')}>详细</button>
               </div>
               <span className="composer__hint">Enter 发送 · Shift + Enter 换行</span>
             </div>

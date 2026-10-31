@@ -62,7 +62,7 @@ interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 export function IconButton({ label, children, className, active, ...props }: IconButtonProps) {
   return (
     <button
-      className={cx('icon-button has-tooltip', active && 'is-active', className)}
+      className={cx('icon-button', active && 'is-active', className)}
       aria-label={label}
       data-tooltip={label}
       {...props}
@@ -110,7 +110,7 @@ const inertSnapshot = new Map<HTMLElement, boolean>();
 function syncModalLayers() {
   const top = modalStack[modalStack.length - 1];
   for (const child of Array.from(document.body.children)) {
-    if (!(child instanceof HTMLElement)) continue;
+    if (!(child instanceof HTMLElement) || child.hasAttribute('data-tooltip-layer')) continue;
     if (!inertSnapshot.has(child)) inertSnapshot.set(child, child.inert);
     child.inert = child !== top;
   }

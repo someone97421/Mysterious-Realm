@@ -227,7 +227,7 @@ export function Ceremony({ draw, conversationId, onRevealed, onFinish, onClose }
         {error && <div className="ceremony-error"><InlineNotice tone="error">{error}</InlineNotice><Button onClick={() => setAttempt((value) => value + 1)}>重新连接</Button></div>}
       </div>
       <footer className="ceremony-footer">
-        <span className="ceremony-hint" role="status" title={hint}>{hint}</span>
+        <span className="ceremony-hint" role="status" data-tooltip={hint}>{hint}</span>
         <div className="ceremony-footer__actions"><Button onClick={action} disabled={!!error || skipping || (phase !== 'choose' && phase !== 'complete')}>{phase === 'shuffle' ? <Shuffle /> : <WandSparkles />}{actionLabel}<ArrowRight /></Button></div>
       </footer>
     </Modal>
