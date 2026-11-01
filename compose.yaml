@@ -6,9 +6,18 @@ services:
     environment:
       XINGWEI_DATA_DIR: /app/data
       XINGWEI_COOKIE_SECURE: "${XINGWEI_COOKIE_SECURE:-${TAROT_COOKIE_SECURE:-false}}"
+      XINGWEI_LOG_RETENTION_DAYS: "${XINGWEI_LOG_RETENTION_DAYS:-90}"
+      XINGWEI_LOG_MAX_ROWS: "${XINGWEI_LOG_MAX_ROWS:-20000}"
+      XINGWEI_LOG_CLEANUP_WRITES: "${XINGWEI_LOG_CLEANUP_WRITES:-100}"
+      XINGWEI_LOG_CLEANUP_COOLDOWN: "${XINGWEI_LOG_CLEANUP_COOLDOWN:-300}"
       TAROT_DATA_DIR: /app/data
       TAROT_COOKIE_SECURE: "${TAROT_COOKIE_SECURE:-false}"
     volumes:
       - "${XINGWEI_HOST_DATA_DIR:-${TAROT_HOST_DATA_DIR:-/Volumes/Nas共享区/Docker-Mini-M6/tarot master}}:/app/data"
     init: true
     stop_grace_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "${XINGWEI_DOCKER_LOG_MAX_SIZE:-10m}"
+        max-file: "${XINGWEI_DOCKER_LOG_MAX_FILES:-3}"

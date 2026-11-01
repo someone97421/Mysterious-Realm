@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 import httpx
 
-from . import db
+from . import db, maintenance
 from .auth import decrypt_key
 from .config import UPLOAD_DIR
 from .errors import AgentFailure, diagnostic
@@ -169,6 +169,7 @@ def record_usage(model, user, purpose, usage, messages, text):
         connection.execute("INSERT INTO usage VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                            (db.uid(), user_id, model_id, user["username"], model["name"], purpose,
                             input_count, output_count, cached, int(estimated), db.now()))
+    maintenance.notify("usage")
 
 
 async def sse_data(response):

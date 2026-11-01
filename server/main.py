@@ -1,3 +1,4 @@
+import asyncio
 import io
 import sqlite3
 import warnings
@@ -10,7 +11,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps, UnidentifiedImageError
 
-from . import admin, auth, conversations, db, profiles
+from . import admin, auth, conversations, db, maintenance, profiles
 from .config import CARD_DIR, MAX_UPLOAD_BYTES, UPLOAD_DIR, WEB_DIR
 from .schemas import Login, Setup
 
@@ -19,10 +20,11 @@ from .schemas import Login, Setup
 async def lifespan(app):
     db.initialize()
     auth.initialize_cipher()
+    log_maintenance = maintenance.start()
     try:
         yield
     finally:
-        await conversations.shutdown()
+        await asyncio.gather(log_maintenance.shutdown(), conversations.shutdown(), return_exceptions=True)
 
 
 app = FastAPI(title="秘域 · Mysterious Realm", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)

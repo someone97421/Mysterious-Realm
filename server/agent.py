@@ -6,7 +6,7 @@ from time import monotonic
 
 from pydantic import ValidationError
 
-from . import astro_runtime, db, llm, reading
+from . import astro_runtime, db, llm, maintenance, reading
 from .agent_prompts import Action, FINAL, PLANNER, SKILLS, VOICE, allowed_tools, knowledge, skill_index
 from .astro_pack.shared.protocol import input_schemas, tool_catalog
 from .context import bounded, build_context, conversation_profiles
@@ -49,6 +49,7 @@ def progress(job, text, state="running", identity=None):
         connection.execute("INSERT INTO progress (id,conversation_id,text,state,created_at) VALUES (?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET text=excluded.text,state=excluded.state",
                            (identity, job.conversation_id, text, state, created))
         row = connection.execute("SELECT id,text,state,created_at FROM progress WHERE id=?", (identity,)).fetchone()
+    maintenance.notify("progress")
     job.emit("progress", dict(row))
     job.progress_id = identity if state == "running" else None
     return identity
@@ -102,7 +103,7 @@ def schema_for(tool):
 
 
 def read_result(conversation_id, action, profiles):
-    row = db.one("SELECT result FROM tool_runs WHERE id=? AND conversation_id=?", (action.result_id, conversation_id))
+    row = db.tool_result(action.result_id, conversation_id)
     if not row:
         raise AgentFailure("这份结果不属于当前对话或已被删除，请重新选择。", "RESULT_NOT_FOUND")
     original = json.loads(row["result"])

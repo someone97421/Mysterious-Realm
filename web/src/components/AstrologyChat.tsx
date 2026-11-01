@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Check, CircleAlert, LoaderCircle, LogOut, Menu, Minus, MoonStar, Plus, ShieldCheck, UsersRound } from 'lucide-react';
+import { Check, CircleAlert, LoaderCircle, LogOut, Menu, Minus, MoonStar, ShieldCheck, UsersRound } from 'lucide-react';
 import { api, jsonBody, postSSE } from '../api';
 import type { AppConfig, AstroReading, Chart, Conversation, ConversationDetail, LengthMode, Message, Mode, Profile, Progress, User } from '../types';
 import { errorMessage, formatDate, isAbortError } from '../utils';
@@ -7,6 +7,7 @@ import { Brand, Button, Field, IconButton, InlineNotice, LoadingBlock, Modal } f
 import { ChartView } from './ChartView';
 import { ModeSwitcher } from './ModeSwitcher';
 import { ConversationCard } from './ConversationCard';
+import { NewConversationButtons } from './NewConversationButtons';
 import { ProfileComposer, type ComposerHandle } from './ProfileComposer';
 import { Profiles, ProfileSummary } from './Profiles';
 import { ReadingPanel } from './ReadingPanel';
@@ -236,7 +237,7 @@ export function AstrologyChat({ user, config, onLogout, onAdmin, mode, initialCo
   }
   const sidebar = <>
     <div className="sidebar__top"><Brand compact /><IconButton className="sidebar__mobile-close" label="关闭历史" onClick={() => setDrawer(false)}><Menu /></IconButton></div>
-    <Button className="new-chat" variant="secondary" disabled={working} onClick={() => select(null)}><Plus />新的探索</Button>
+    <NewConversationButtons mode={mode} disabled={working} onNew={next => { if (working) return; if (next === mode) select(null); else { setDrawer(false); void onSwitchMode(next); } }} />
     <div className="sidebar__section-label"><span>往昔星轨</span><small>{conversations.length || ''}</small></div>
     <nav className="conversation-list" aria-label="历史对话">
       {listLoading && <LoadingBlock />}
@@ -266,7 +267,7 @@ export function AstrologyChat({ user, config, onLogout, onAdmin, mode, initialCo
         <IconButton label="打开导航" className="mobile-menu" onClick={() => setDrawer(true)}><Menu /></IconButton>
         <div className="chat-header__title"><span className="eyebrow">Mysterious Realm · 星辰与自我</span><h1>{detail?.conversation.title || '循着星图，认识自己'}</h1></div>
         <ModeSwitcher mode={mode} onSwitch={onSwitchMode} disabled={busy || settling} />
-        <Button variant="ghost" disabled={busy} onClick={() => setManage(true)}><UsersRound /><span>人物</span></Button>
+        <Button type="button" className="chat-header__profiles" variant="ghost" aria-label="管理人物" aria-haspopup="dialog" onClick={() => setManage(true)}><UsersRound aria-hidden="true" /><span>人物</span></Button>
       </header>
       <div className="astro-workspace">
         <div className="chart-column" ref={chartPanel}>

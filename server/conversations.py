@@ -234,7 +234,7 @@ def get_conversation(conversation_id: str, user=Depends(auth.current_user)):
             "SELECT payload FROM charts WHERE conversation_id=? ORDER BY created_at", (conversation_id,)
         )] if conversation["mode"] == "astrology" else [],
         "progress": db.all_rows(
-            "SELECT id,text,state,created_at FROM progress WHERE conversation_id=? ORDER BY created_at", (conversation_id,)
+            "SELECT * FROM (SELECT id,text,state,created_at FROM progress WHERE conversation_id=? ORDER BY created_at DESC,id DESC LIMIT 200) ORDER BY created_at,id", (conversation_id,)
         ) if conversation["mode"] == "astrology" else [],
         "active": conversation_id in RUNS,
     }

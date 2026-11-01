@@ -80,7 +80,7 @@ def _bounded_brief(result, budget):
 def compact_astrology_facts(conversation_id):
     profiles = conversation_profiles(conversation_id)
     versions = {profile["id"]: profile["version"] for profile in profiles}
-    runs = db.all_rows("SELECT id,tool,result,created_at FROM tool_runs WHERE conversation_id=? ORDER BY created_at DESC LIMIT 40", (conversation_id,))
+    runs = db.recent_tool_results(conversation_id)
     index, recent = [], []
     for row in runs:
         result = json.loads(row["result"] or "{}")

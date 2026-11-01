@@ -133,9 +133,21 @@ export interface AstrologySettings {
   allow_credit_spend: boolean; allow_unknown_cost: boolean; max_credits: number | null; timeout: number;
   cache_enabled: boolean; enabled_tools: string[];
 }
+export interface Pagination {
+  page: number;
+  page_size: number;
+  total: number;
+  total_pages: number;
+}
+export interface Retention {
+  days: number;
+  max_rows: number;
+}
 export interface ToolUsage {
   recent: { id: string; tool: string; provider: string; status: string; credits: number | null; cache_hit: boolean; created_at: string; error_code: string | null }[];
-  totals: { calls: number; credits: number | null; cache_hits: number };
+  totals: { calls: number; credits: number | null; known_credits: number; unknown_calls: number; cache_hits: number };
+  pagination: Pagination;
+  retention: Retention;
 }
 
 export type SchemaType = 'chat_completions' | 'responses' | 'anthropic';
@@ -204,4 +216,6 @@ export interface UsageStats {
   by_model: UsageRow[];
   daily: UsageRow[];
   recent: UsageEvent[];
+  pagination: Pagination;
+  retention: Retention;
 }

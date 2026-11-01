@@ -1,13 +1,11 @@
 import shutil
 import sqlite3
 import time
-from collections import defaultdict
-from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import ValidationError
 
-from . import auth, db, llm, settings as astrology_settings
+from . import auth, db, llm, usage, settings as astrology_settings
 from .config import DATA_DIR, UPLOAD_DIR
 from .schemas import AstrologyServiceInput, AstrologySettingsPatch, ModelConfig, UserCreate, UserPatch
 
@@ -191,39 +189,10 @@ async def check_model(model_id: str, admin=Depends(auth.administrator)):
         return {"ok": False, "message": str(exc), "latency_ms": round((time.monotonic() - start) * 1000)}
 
 
-def aggregate(rows):
-    total_in = sum(row["input_tokens"] for row in rows)
-    known = [row for row in rows if row["cached_tokens"] is not None and not row["estimated"]]
-    known_input = sum(row["input_tokens"] for row in known)
-    cached = sum(row["cached_tokens"] or 0 for row in rows)
-    return {"input_tokens": total_in, "output_tokens": sum(row["output_tokens"] for row in rows),
-            "cached_tokens": cached, "cache_hit_rate": sum(row["cached_tokens"] for row in known) / known_input if known_input else None,
-            "requests": len(rows), "estimated_requests": sum(bool(row["estimated"]) for row in rows)}
-
-
 @router.get("/stats")
-def stats(days: int = Query(30, ge=1, le=366), user_id: str = "", model_id: str = ""):
-    since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-    conditions, args = ["created_at>=?"], [since]
-    if user_id:
-        conditions.append("user_id=?")
-        args.append(user_id)
-    if model_id:
-        conditions.append("model_id=?")
-        args.append(model_id)
-    rows = db.all_rows("SELECT * FROM usage WHERE " + " AND ".join(conditions) + " ORDER BY created_at DESC", args)
-
-    def grouped(key, label_key=None):
-        groups = defaultdict(list)
-        for row in rows:
-            value = row["created_at"][:10] if key == "day" else (row[key] or row[label_key])
-            groups[value].append(row)
-        result = [{"label": group[0][label_key] if label_key else value, **aggregate(group)} for value, group in groups.items()]
-        return sorted(result, key=lambda row: row["label"]) if key == "day" else sorted(result, key=lambda row: row["input_tokens"] + row["output_tokens"], reverse=True)
-
-    return {"totals": aggregate(rows), "by_user": grouped("user_id", "username"),
-            "by_model": grouped("model_id", "model_name"), "daily": grouped("day"),
-            "recent": [{**row, "estimated": bool(row["estimated"])} for row in rows[:100]]}
+def stats(days: int = Query(30, ge=1, le=366), user_id: str = "", model_id: str = "",
+          page: int = Query(1, ge=1), page_size: int = Query(50, ge=1, le=100)):
+    return usage.stats(days, user_id, model_id, page, page_size)
 
 @router.get("/astrology")
 def get_astrology_settings():
@@ -256,11 +225,5 @@ def delete_astrology_service(service_id: str):
 
 
 @router.get("/astrology/usage")
-def astrology_usage():
-    rows = db.all_rows("SELECT id,tool,provider,service_name,attempt,status,credits,cache_hit,created_at,error_code FROM tool_runs ORDER BY created_at DESC LIMIT 100")
-    totals = db.one("SELECT COUNT(*) AS calls, SUM(credits) AS credits, SUM(CASE WHEN credits IS NULL THEN 1 ELSE 0 END) AS unknown_calls, COALESCE(SUM(cache_hit),0) AS cache_hits FROM tool_runs")
-    return {
-        "recent": [{**row, "cache_hit": bool(row["cache_hit"])} for row in rows],
-        "totals": {"calls": totals["calls"], "credits": None if totals["unknown_calls"] else totals["credits"] or 0,
-                   "cache_hits": totals["cache_hits"]},
-    }
+def astrology_usage(page: int = Query(1, ge=1), page_size: int = Query(50, ge=1, le=100)):
+    return usage.tool_usage(page, page_size)

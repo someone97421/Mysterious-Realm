@@ -51,11 +51,14 @@
 - 创建模型请求以上配置字段 + `api_key`，不传 id、has_api_key、created_at；修改时 api_key 省略或空字符串表示保留，不回显密钥。
 - provider 为预设名称，仅前端辅助填入 base_url/schema_type，可完全自定义；API Base URL 表示 `/v1` 级前缀，不含具体 endpoint（兼容用户粘贴完整 endpoint）。
 - compression_threshold 为 0.3～0.95 的比例，context_window >=4096，max_output_tokens >=256，默认 8192。
-- `GET /api/admin/stats?days=30&user_id=&model_id=` → `{totals:{input_tokens,output_tokens,cached_tokens,cache_hit_rate:number|null,requests,estimated_requests},by_user:UsageRow[],by_model:UsageRow[],daily:UsageRow[],recent:UsageEvent[]}`。
+- `GET /api/admin/stats?days=30&user_id=&model_id=&page=1&page_size=50` → `{totals:{input_tokens,output_tokens,cached_tokens,cache_hit_rate:number|null,requests,estimated_requests},by_user:UsageRow[],by_model:UsageRow[],daily:UsageRow[],recent:UsageEvent[],pagination:Pagination,retention:Retention}`。时间范围为包含当天的最近 days 个 UTC 自然日，days 为 1～366。
 - UsageRow: `{label,input_tokens,output_tokens,cached_tokens,cache_hit_rate,requests}`。
 - UsageEvent: `{id,created_at,username,model_name,purpose,input_tokens,output_tokens,cached_tokens:number|null,estimated:boolean}`。
-- 汇总缓存命中率只用服务提供了完整缓存及Token用量的请求加权计算；混合筛选时未提供缓存数据的请求不进入比例分母。明细 recent 最多返回100条。大牌阵按输出预算分批解读后串联，分批请求都计入 reading 用量。
+- 汇总缓存命中率只用服务提供了完整缓存及 Token 用量的请求加权计算；混合筛选时未提供缓存数据的请求不进入比例分母。汇总读取日用量账本，保留清理前的累计用量；明细 recent 使用 SQL 分页，条数可能少于汇总请求次数。大牌阵分批请求均计入 reading 用量。
 - cache_hit_rate 是 0～1 或 null；接口未报告 cache 就显示「未提供」。统计包含普通聊天、排阵、解读、压缩和连接检查。
+- `GET /api/admin/astrology/usage?page=1&page_size=50` → `{recent:ToolUsageEvent[],totals:{calls,credits:number|null,known_credits,unknown_calls,cache_hits},pagination:Pagination,retention:Retention}`。累计调用与积分不因清理明细或删除对话而减少；存在未知费用时 credits 为 null，known_credits 始终返回已知费用之和。
+- Pagination: `{page,page_size,total,total_pages}`。page 从 1 开始，page_size 默认 50、最大 100；越界页纠正到末页，无记录时为第 1／1 页。total 是当前筛选下仍保留的明细数，排序为 created_at、id 倒序。
+- Retention: `{days,max_rows}`。请求、工具调用和已完成进度明细默认各按 90 天、最多 20,000 条的策略清理。仅在成功提交日志写入后合并触发：每类首次写入、累计 100 次写入，或距上次检查满 300 秒后再次写入；无定时检查，空闲期间过期记录等待后续写入处理。每轮有批次上限，剩余积压等待后续写入继续清理。工具计算结果转存为对话资料，读取引用保持有效；对话详情只返回最近 200 条进度。
 
 ## 体验要求
 中文界面；紫色暗调、神秘浪漫，高品质响应式；手机与电脑横竖屏；提示使用 hint / tooltip，不放大段说明。支持图片上传及预览移除、流式文字、错误重试、手动删除历史对话、取消等待时不自动重复抽牌。管理账号卡片 CRUD，模型 CRUD + 默认设置 +连接检查，统计筛选。抽牌采用 78 张连续可浏览牌池，打开后自动洗牌 3 秒，识别滑动与点击后直接抽牌；电脑滚轮可横向浏览牌池，CSS 3D 翻牌，固定舞台及操作区；可跳过并支持 reduced-motion。用户界面不能出现模型管理或模型切换控件；管理员可通过独立入口进入后台。

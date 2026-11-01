@@ -6,7 +6,7 @@ import hashlib
 import json
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from . import db
+from . import db, maintenance
 from .config import DATA_DIR
 from .settings import runtime_settings
 from .chart_data import finite, make_chart
@@ -218,6 +218,7 @@ def execute_sync(tool, payload, user, conversation_id=None, profiles=None, stop=
             )
         if chart and result["status"] == "ok" and conversation_id:
             connection.execute("INSERT INTO charts VALUES (?,?,?,?)", (chart["id"], conversation_id, db.dumps(chart), created))
+    maintenance.notify("tool_runs", len(records))
     return result, chart
 
 

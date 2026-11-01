@@ -188,3 +188,20 @@ def initialize():
         if not database.execute("SELECT 1 FROM models WHERE is_default_astrology=1").fetchone():
             database.execute("UPDATE models SET is_default_astrology=1 WHERE is_default=1 AND mode_scope IN ('both','astrology')")
         database.execute("UPDATE progress SET state='error', text='任务因服务重启中断' WHERE state='running'")
+        from . import usage
+        usage.initialize(database)
+
+
+def tool_result(identity, conversation_id):
+    return one("""
+        SELECT result FROM tool_runs WHERE id=? AND conversation_id=?
+        UNION ALL SELECT result FROM tool_results WHERE id=? AND conversation_id=? LIMIT 1
+    """, (identity, conversation_id, identity, conversation_id))
+
+
+def recent_tool_results(conversation_id):
+    return all_rows("""
+        SELECT id,tool,result,created_at FROM tool_runs WHERE conversation_id=?
+        UNION ALL SELECT id,tool,result,created_at FROM tool_results WHERE conversation_id=?
+        ORDER BY created_at DESC,id DESC LIMIT 40
+    """, (conversation_id, conversation_id))

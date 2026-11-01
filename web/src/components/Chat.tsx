@@ -4,7 +4,6 @@ import {
   LoaderCircle,
   Menu,
   MoonStar,
-  Plus,
   Send,
   ShieldCheck,
   Sparkles,
@@ -22,6 +21,7 @@ import { Brand, Button, ConfirmDialog, Field, IconButton, InlineNotice, LoadingB
 import { ModeSwitcher } from './ModeSwitcher';
 import { ConversationCard } from './ConversationCard';
 import { Reasoning } from './Reasoning';
+import { NewConversationButtons } from './NewConversationButtons';
 interface Draft {
   text: string;
   images: ImageAsset[];
@@ -566,7 +566,7 @@ export function Chat({ user, config, onLogout, onAdmin, mode, initialConversatio
   const sidebar = (
     <>
       <div className="sidebar__top"><Brand compact /><IconButton className="sidebar__mobile-close" label="关闭历史" onClick={() => setSidebarOpen(false)}><X /></IconButton></div>
-      <Button className="new-chat" variant="secondary" onClick={() => selectConversation(null)}><Plus />新的对话</Button>
+      <NewConversationButtons mode={mode} switchingDisabled={anyGenerating} onNew={next => { if (next === mode) selectConversation(null); else if (!anyGenerating) { setSidebarOpen(false); void onSwitchMode(next); } }} />
       <div className="sidebar__section-label"><span>往昔星轨</span><small>{conversations.length || ''}</small></div>
       <div className="conversation-list">
         {listLoading && <LoadingBlock />}

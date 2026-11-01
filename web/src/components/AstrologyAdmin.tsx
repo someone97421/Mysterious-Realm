@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { KeyRound, Orbit, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Info, KeyRound, Orbit, Pencil, Plus, Trash2 } from 'lucide-react';
 import { api, jsonBody } from '../api';
 import type { AstrologyProvider, AstrologyService, AstrologySettings, ToolUsage } from '../types';
 import { errorMessage, formatDate } from '../utils';
+import { Pagination, RetentionHint } from './Pagination';
 import { Button, ConfirmDialog, EmptyState, Field, IconButton, InlineNotice, LoadingBlock, Modal } from './ui';
 
 interface ServiceForm {
@@ -19,14 +20,24 @@ const blankService = (services: AstrologyService[]): ServiceForm => ({
   priority: services.length ? Math.max(...services.map(service => service.priority)) + 1 : 1,
 });
 
+const usageStatusNames: Record<string, string> = { success: '成功', complete: '完成', error: '失败', running: '进行中', cancelled: '已取消' };
+
 export function AstrologyAdmin() {
   const [settings, setSettings] = useState<AstrologySettings | null>(null);
-  const [usage, setUsage] = useState<ToolUsage | null>(null);
+  const [usagePage, setUsagePage] = useState(1);
+  const [usagePageSize, setUsagePageSize] = useState(50);
+  const [usageAttempt, setUsageAttempt] = useState(0);
+  const [usageResponse, setUsageResponse] = useState<{ key: string; data: ToolUsage | null; error: string } | null>(null);
   const [tools, setTools] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [usageError, setUsageError] = useState('');
+  const usageQuery = new URLSearchParams({ page: String(usagePage), page_size: String(usagePageSize) }).toString();
+  const usageRequestKey = `${usageQuery}&attempt=${usageAttempt}`;
+  const usageResponseKey = usageResponse?.key;
+  const usageLoading = usageResponseKey !== usageRequestKey;
+  const usage = !usageLoading ? usageResponse?.data : null;
+  const usageError = !usageLoading ? usageResponse?.error : '';
   const [success, setSuccess] = useState('');
   const [editing, setEditing] = useState<AstrologyService | null>(null);
   const [open, setOpen] = useState(false);
@@ -37,14 +48,29 @@ export function AstrologyAdmin() {
   const [deleteSaving, setDeleteSaving] = useState(false);
   const [toggling, setToggling] = useState('');
 
-  const loadUsage = useCallback(async () => { setUsageError(''); try { setUsage(await api<ToolUsage>('/api/admin/astrology/usage')); } catch { setUsageError('工具用量加载失败'); } }, []);
   const load = useCallback(async () => {
     setLoading(true); setError('');
     try { const value = await api<AstrologySettings>('/api/admin/astrology'); setSettings(value); setTools(value.enabled_tools.join('\n')); }
     catch { setError('占星设置加载失败，请重试'); }
     finally { setLoading(false); }
   }, []);
-  useEffect(() => { void load(); void loadUsage(); }, [load, loadUsage]);
+  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (usageResponseKey === usageRequestKey) return;
+    const controller = new AbortController();
+    api<ToolUsage>(`/api/admin/astrology/usage?${usageQuery}`, { signal: controller.signal }).then(result => {
+      if (controller.signal.aborted) return;
+      const normalized = new URLSearchParams(usageQuery);
+      normalized.set('page', String(result.pagination.page));
+      normalized.set('page_size', String(result.pagination.page_size));
+      setUsagePage(result.pagination.page);
+      setUsagePageSize(result.pagination.page_size);
+      setUsageResponse({ key: `${normalized}&attempt=${usageAttempt}`, data: result, error: '' });
+    }).catch(reason => {
+      if (!controller.signal.aborted) setUsageResponse({ key: usageRequestKey, data: null, error: errorMessage(reason) });
+    });
+    return () => controller.abort();
+  }, [usageQuery, usageRequestKey, usageResponseKey, usageAttempt]);
 
   const update = (patch: Partial<Omit<AstrologySettings, 'services'>>) => { setSuccess(''); setSettings(value => value ? { ...value, ...patch } : value); };
   const setServices = (services: AstrologyService[]) => setSettings(value => value ? { ...value, services } : value);
@@ -138,6 +164,18 @@ export function AstrologyAdmin() {
       {form.provider === 'astroway' && <><Field label="API Key" className="form-grid__wide" hint={editing?.has_api_key ? '已保存；留空保留，提交后不再回显' : '密钥仅用于服务端连接'}><input type="password" autoComplete="new-password" value={form.api_key} disabled={form.clear_api_key} onChange={event => setForm({ ...form, api_key: event.target.value })} /></Field>{editing?.has_api_key && <label className="switch-row form-grid__wide"><input type="checkbox" checked={form.clear_api_key} onChange={event => setForm({ ...form, clear_api_key: event.target.checked, api_key: '' })} /><span className="switch" />清除已保存密钥</label>}</>}
     </div><div className="modal__actions"><Button type="button" variant="ghost" disabled={serviceSaving} onClick={() => setOpen(false)}>取消</Button><Button loading={serviceSaving}>{editing ? '保存服务' : '添加服务'}</Button></div></form></Modal>}
     {deleting && <ConfirmDialog title={`删除 ${deleting.name}？`} description="此服务卡及其密钥配置将被移除，此操作无法恢复。" loading={deleteSaving} onClose={() => setDeleting(null)} onConfirm={() => void remove()} />}
-    <section className="stats-section"><header><h2>工具调用用量</h2><Button variant="ghost" onClick={() => void loadUsage()}>刷新用量</Button></header>{usageError && <InlineNotice tone="error">{usageError}</InlineNotice>}{!usage && !usageError && <LoadingBlock />}{usage && <><div className="metric-grid"><article><span>调用次数</span><strong>{usage.totals.calls}</strong></article><article><span>已知积分消耗</span><strong>{usage.totals.credits ?? '未知'}</strong><small>未知费用不计为零</small></article><article><span>缓存命中</span><strong>{usage.totals.cache_hits}</strong></article></div>{!usage.recent.length ? <small className="hint">暂无工具调用记录</small> : <div className="stats-table-wrap tool-usage-table"><table className="stats-table"><thead><tr><th>时间 / 工具</th><th>服务</th><th>状态</th><th>积分</th><th>缓存</th><th>错误码</th></tr></thead><tbody>{usage.recent.map(row => <tr key={row.id}><td><strong>{row.tool}</strong><small>{formatDate(row.created_at, true)}</small></td><td>{row.provider}</td><td>{({ success: '成功', complete: '完成', error: '失败', running: '进行中', cancelled: '已取消' } as Record<string, string>)[row.status] || row.status}</td><td>{row.credits ?? '未知'}</td><td>{row.cache_hit ? '命中' : '未命中'}</td><td>{row.error_code || '—'}</td></tr>)}</tbody></table></div>}</>}</section>
+    <section className="stats-section" aria-busy={usageLoading}>
+      <header><h2>工具调用用量 {usage && <RetentionHint retention={usage.retention} aggregateTotals />}</h2><Button type="button" variant="ghost" disabled={usageLoading} onClick={() => setUsageAttempt(value => value + 1)}>刷新用量</Button></header>
+      {usageError && <InlineNotice tone="error">{usageError}<Button type="button" variant="ghost" onClick={() => setUsageAttempt(value => value + 1)}>重试</Button></InlineNotice>}
+      {usageLoading && <LoadingBlock />}
+      {usage && <>
+        <div className="metric-grid"><article><span>调用次数</span><strong>{usage.totals.calls}</strong></article><article><span>已知积分消耗</span><strong>{usage.totals.known_credits}</strong><small><span className="cache-hint" tabIndex={0} aria-label={`有 ${usage.totals.unknown_calls} 次调用费用未知，未计入已知积分消耗。`} data-tooltip-touch="" data-tooltip={`有 ${usage.totals.unknown_calls} 次调用费用未知，未计入已知积分消耗。`}><Info aria-hidden="true" /></span></small></article><article><span>缓存命中</span><strong>{usage.totals.cache_hits}</strong></article></div>
+        {!usage.recent.length ? <EmptyState title="暂无工具调用记录" /> : <>
+          <div className="stats-table-wrap tool-usage-table"><table className="stats-table"><thead><tr><th>时间 / 工具</th><th>服务</th><th>状态</th><th>积分</th><th>缓存</th><th>错误码</th></tr></thead><tbody>{usage.recent.map(row => <tr key={row.id}><td><strong>{row.tool}</strong><small>{formatDate(row.created_at, true)}</small></td><td>{row.provider}</td><td>{usageStatusNames[row.status] || row.status}</td><td>{row.credits ?? '未知'}</td><td>{row.cache_hit ? '命中' : '未命中'}</td><td>{row.error_code || '—'}</td></tr>)}</tbody></table></div>
+          <div className="stats-mobile-rows tool-usage-mobile">{usage.recent.map(row => <article key={row.id}><header><h3>{row.tool}</h3><span>{usageStatusNames[row.status] || row.status}</span></header><p>{row.provider} · {formatDate(row.created_at, true)}</p><dl><div><dt>积分</dt><dd>{row.credits ?? '未知'}</dd></div><div><dt>缓存</dt><dd>{row.cache_hit ? '命中' : '未命中'}</dd></div><div><dt>错误码</dt><dd>{row.error_code || '—'}</dd></div></dl></article>)}</div>
+        </>}
+      </>}
+      <Pagination label="工具调用" pagination={usage?.pagination ?? null} pageSize={usagePageSize} loading={usageLoading} onPageChange={setUsagePage} onPageSizeChange={value => { setUsagePageSize(value); setUsagePage(1); }} />
+    </section>
   </section>;
 }
