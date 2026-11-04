@@ -16,16 +16,16 @@ import {
 import { createPortal } from 'react-dom';
 import { cx } from '../utils';
 
-export function Brand({ compact = false }: { compact?: boolean }) {
-  return (
-    <div className={cx('brand', compact && 'brand--compact')}>
-      <span className="brand__sigil" aria-hidden="true"><MoonStar /></span>
-      <span className="brand__words">
-        <strong>秘域</strong>
-        {!compact && <small>Mysterious Realm</small>}
-      </span>
-    </div>
-  );
+export function Brand({ compact = false, onClick }: { compact?: boolean; onClick?: () => void }) {
+  const content = <>
+    <span className="brand__sigil" aria-hidden="true"><MoonStar /></span>
+    <span className="brand__words">
+      <strong>秘域</strong>
+      {!compact && <small>Mysterious Realm</small>}
+    </span>
+  </>;
+  if (onClick) return <button type="button" className={cx('brand', 'brand--link', compact && 'brand--compact')} onClick={onClick} aria-label="返回模式选择" data-tooltip="返回模式选择">{content}</button>;
+  return <div className={cx('brand', compact && 'brand--compact')}>{content}</div>;
 }
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {

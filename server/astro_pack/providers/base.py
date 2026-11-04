@@ -110,8 +110,11 @@ class BaseProvider:
         if status in {400, 404, 409, 422}:
             code = "PROVIDER_REQUEST_REJECTED"
             retryable = False
-        elif status in {401, 403}:
+        elif status == 401:
             code = "AUTHENTICATION_FAILED"
+            retryable = False
+        elif status == 403:
+            code = "PERMISSION_DENIED"
             retryable = False
         elif status == 402:
             code = "PAYMENT_REQUIRED"

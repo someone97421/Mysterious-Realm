@@ -1,0 +1,141 @@
+.realm-gateway { position: relative; min-height: 100dvh; overflow: hidden; color: #f5f0ff; background: #070711; isolation: isolate; }
+.realm-gateway__stars { position: absolute; z-index: -1; inset: 0; pointer-events: none; }
+.realm-gateway__stars i { position: absolute; border-radius: 50%; background: #fff; box-shadow: 0 0 9px #d6c7ff; opacity: .35; animation: gateway-twinkle 5s ease-in-out infinite alternate; }
+.realm-gateway__nebula { position: absolute; z-index: -2; top: -30%; width: 75%; height: 125%; filter: blur(20px); pointer-events: none; }
+.realm-gateway__nebula--tarot { left: -20%; background: radial-gradient(ellipse, #6f31834d, transparent 66%); animation: gateway-nebula 12s ease-in-out infinite alternate; }
+.realm-gateway__nebula--astrology { right: -20%; background: radial-gradient(ellipse, #174d824d, transparent 66%); animation: gateway-nebula 14s ease-in-out -4s infinite alternate-reverse; }
+.realm-gateway__watermark { position: absolute; z-index: -1; top: 38%; color: transparent; font-family: Georgia, serif; font-size: clamp(100px, 14vw, 230px); letter-spacing: .08em; line-height: 1; opacity: .12; -webkit-text-stroke: 1px #d9c6ff; pointer-events: none; }
+.realm-gateway__watermark--tarot { left: -3%; transform: rotate(-90deg) translateX(-30%); transform-origin: left top; }
+.realm-gateway__watermark--astrology { right: -5%; transform: rotate(90deg) translateX(25%); transform-origin: right top; -webkit-text-stroke-color: #a8d8ff; }
+.realm-gateway__header { position: absolute; z-index: 10; top: 0; left: 0; width: 100%; min-height: 88px; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: max(20px, env(safe-area-inset-top)) max(42px, env(safe-area-inset-right)) 16px max(42px, env(safe-area-inset-left)); }
+.realm-gateway__account { display: flex; align-items: center; gap: 7px; }
+.realm-gateway__account .button { min-height: 42px; color: #bdb4cb; }
+.realm-gateway__account .button svg { width: 15px; }
+.realm-gateway__user { margin-right: 10px; color: #a79db5; font-size: 12px; }
+.realm-gateway__content { width: min(1180px, 100%); min-height: 100dvh; display: flex; flex-direction: column; justify-content: center; margin: auto; padding: 116px 36px 26px; }
+.realm-gateway__intro { position: relative; z-index: 2; text-align: center; animation: gateway-enter 800ms cubic-bezier(.16,1,.3,1) both; }
+.realm-gateway__eyebrow { display: flex; align-items: center; justify-content: center; gap: 14px; color: #b9a7d1; font-size: 9px; letter-spacing: .34em; }
+.realm-gateway__eyebrow i { width: 34px; height: 1px; background: linear-gradient(90deg, transparent, #b9a7d18c); }
+.realm-gateway__eyebrow i:last-child { transform: rotate(180deg); }
+.realm-gateway__intro h1 { margin: 13px 0 9px; font-family: "Songti SC", "STSong", serif; font-size: clamp(28px, 3.1vw, 43px); font-weight: 500; letter-spacing: .12em; line-height: 1.4; text-shadow: 0 0 40px #ba94ef25; }
+.realm-gateway__intro p { margin: 0; color: #a79db5; font-size: 13px; letter-spacing: .08em; line-height: 1.8; }
+.realm-gateway__choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-top: 30px; perspective: 1400px; }
+.realm-choice { --realm-rgb: 190, 133, 241; --realm-accent: #d4a5ff; --pointer-x: 50%; --pointer-y: 50%; --rotate-x: 0deg; --rotate-y: 0deg; position: relative; min-width: 0; min-height: 390px; overflow: hidden; display: flex; flex-direction: column; padding: 0; border: 1px solid rgba(var(--realm-rgb), .26); border-radius: 28px; outline: none; color: #f4edfc; text-align: left; background: radial-gradient(circle at 50% 15%, rgba(var(--realm-rgb), .16), transparent 48%), linear-gradient(145deg, rgba(var(--realm-rgb), .08), #100d1ac9 65%); box-shadow: inset 0 1px #ffffff0b, 0 22px 70px #0004; cursor: pointer; transform: perspective(1200px) rotateX(var(--rotate-x)) rotateY(var(--rotate-y)) translateY(0); transform-style: preserve-3d; transition: transform 240ms ease-out, border-color 300ms, box-shadow 300ms, opacity 300ms, filter 300ms; animation: gateway-card-enter 900ms cubic-bezier(.16,1,.3,1) var(--enter-delay) backwards; -webkit-tap-highlight-color: transparent; }
+.realm-choice--astrology { --realm-rgb: 91, 165, 239; --realm-accent: #9fd5ff; background: radial-gradient(circle at 50% 15%, rgba(var(--realm-rgb), .17), transparent 48%), linear-gradient(145deg, rgba(var(--realm-rgb), .07), #091322d9 65%); }
+.realm-choice::before { content: ''; position: absolute; z-index: 3; inset: 0; border-radius: inherit; box-shadow: inset 0 0 70px rgba(var(--realm-rgb), .03); pointer-events: none; }
+.realm-choice::after { content: ''; position: absolute; z-index: 4; inset: 10px; border: 1px solid rgba(var(--realm-rgb), .08); border-radius: 20px; pointer-events: none; }
+.realm-choice:hover:not(:disabled) { border-color: rgba(var(--realm-rgb), .65); box-shadow: inset 0 1px #ffffff14, 0 28px 90px #0007, 0 0 55px rgba(var(--realm-rgb), .12); }
+.realm-choice:focus-visible { border-color: var(--realm-accent); box-shadow: 0 0 0 3px #070711, 0 0 0 5px var(--realm-accent), 0 24px 80px #0007; }
+.realm-choice:disabled { cursor: default; }
+.realm-choice.is-selected { opacity: 1; border-color: rgba(var(--realm-rgb), .9); box-shadow: 0 0 80px rgba(var(--realm-rgb), .28), inset 0 0 70px rgba(var(--realm-rgb), .1); transform: perspective(1200px) scale(1.025); }
+.realm-choice.is-receding { opacity: .25; filter: blur(3px) saturate(.4); transform: perspective(1200px) scale(.94); }
+.realm-choice__shine { position: absolute; z-index: 2; inset: 0; opacity: 0; background: radial-gradient(circle 260px at var(--pointer-x) var(--pointer-y), rgba(var(--realm-rgb), .16), transparent 70%); transition: opacity 250ms; pointer-events: none; }
+.realm-choice:hover .realm-choice__shine, .realm-choice.is-selected .realm-choice__shine { opacity: 1; }
+.realm-choice__number { position: absolute; z-index: 3; top: 23px; right: 27px; color: rgba(var(--realm-rgb), .45); font-family: Georgia, serif; font-size: 12px; letter-spacing: .16em; }
+.realm-choice__visual { position: relative; height: 196px; flex: 0 0 auto; transform: translateZ(22px); }
+.realm-choice__body { position: relative; z-index: 5; display: flex; flex: 1; flex-direction: column; padding: 0 30px 27px; transform: translateZ(28px); }
+.realm-choice__eyebrow { color: var(--realm-accent); font-size: 9px; letter-spacing: .23em; opacity: .8; }
+.realm-choice__body > strong { margin-top: 9px; font-family: "Songti SC", "STSong", serif; font-size: clamp(20px, 2vw, 26px); font-weight: 500; letter-spacing: .05em; line-height: 1.45; }
+.realm-choice__description { min-height: 42px; margin-top: 7px; color: #a9a0b4; font-size: 12px; line-height: 1.75; }
+.realm-choice--astrology .realm-choice__description { color: #9aadc1; }
+.realm-choice__footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; padding-top: 15px; border-top: 1px solid rgba(var(--realm-rgb), .13); }
+.realm-choice__footer small { color: rgba(var(--realm-rgb), .65); font-size: 10px; letter-spacing: .08em; }
+.realm-choice__footer > span { display: flex; align-items: center; gap: 7px; color: var(--realm-accent); font-size: 12px; white-space: nowrap; }
+.realm-choice__footer svg { width: 15px; transition: transform 200ms; }
+.realm-choice:hover .realm-choice__footer svg { transform: translateX(4px); }
+.realm-gateway__footer { display: flex; align-items: center; justify-content: center; gap: 11px; margin-top: 23px; color: #766e84; font-family: "Songti SC", "STSong", serif; font-size: 11px; letter-spacing: .1em; text-align: center; animation: gateway-enter 800ms 650ms both; }
+.realm-gateway__footer svg { width: 12px; color: #9a82b9; }
+
+.realm-tarot__aura, .realm-astrology__aura { position: absolute; top: 5%; left: 50%; width: 250px; height: 180px; border-radius: 50%; background: rgba(var(--realm-rgb), .16); filter: blur(42px); transform: translateX(-50%); }
+.realm-tarot__orbit { position: absolute; top: 10px; left: 50%; width: 245px; height: 155px; border: 1px solid rgba(var(--realm-rgb), .13); border-radius: 50%; transform: translateX(-50%) rotate(-12deg); }
+.realm-tarot__orbit i { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: var(--realm-accent); box-shadow: 0 0 10px var(--realm-accent); }
+.realm-tarot__orbit i:nth-child(1) { top: 22px; left: 28px; }
+.realm-tarot__orbit i:nth-child(2) { right: 16px; bottom: 47px; }
+.realm-tarot__orbit i:nth-child(3) { left: 100px; bottom: -2px; }
+.realm-tarot__fan { position: absolute; top: 17px; left: 50%; width: 250px; height: 172px; transform: translateX(-50%); }
+.realm-tarot__card { position: absolute; top: 13px; left: 83px; width: 84px; height: 140px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 10px 8px; border: 1px solid #d6b6ec77; border-radius: 8px; color: #e7c6ff; background: radial-gradient(circle at 50% 42%, #844ca34d, transparent 42%), linear-gradient(150deg, #32203f, #130e20); box-shadow: 0 12px 26px #0007, inset 0 0 0 4px #0e0918, inset 0 0 0 5px #d6b6ec36; transform-origin: 50% 125%; transition: transform 500ms cubic-bezier(.16,1,.3,1); }
+.realm-tarot__card::after { content: ''; position: absolute; inset: 8px; border: 1px solid #d6b6ec24; border-radius: 3px; }
+.realm-tarot__card > span { z-index: 1; font-family: Georgia, serif; font-size: 8px; letter-spacing: .15em; }
+.realm-tarot__card > svg { width: 31px; height: 31px; stroke-width: 1; filter: drop-shadow(0 0 8px #d6b6ec55); }
+.realm-tarot__card > small { z-index: 1; font-family: Georgia, "Songti SC", serif; font-size: 7px; letter-spacing: .2em; }
+.realm-tarot__card--left { transform: translate(-58px, 8px) rotate(-18deg); animation: gateway-card-left 5s ease-in-out infinite alternate; }
+.realm-tarot__card--right { transform: translate(58px, 8px) rotate(18deg); animation: gateway-card-right 5.5s ease-in-out infinite alternate; }
+.realm-tarot__card--main { z-index: 2; transform: translateY(-6px); animation: gateway-card-main 4s ease-in-out infinite alternate; }
+.realm-choice:hover .realm-tarot__card { animation: none; }
+.realm-choice:hover .realm-tarot__card--left { transform: translate(-67px, 9px) rotate(-23deg); }
+.realm-choice:hover .realm-tarot__card--right { transform: translate(67px, 9px) rotate(23deg); }
+.realm-tarot__sun { position: relative; display: grid; place-items: center; }
+.realm-tarot__sun > svg { width: 42px; height: 42px; stroke-width: .8; }
+.realm-tarot__sun i { position: absolute; width: 53px; height: 53px; border: 1px dashed #d6b6ec55; border-radius: 50%; animation: gateway-spin 16s linear infinite; }
+.realm-tarot__spark { position: absolute; top: 30px; right: 13px; width: 13px !important; color: #fff2c5; }
+
+.realm-astrology__wheel { position: absolute; top: 10px; left: 50%; width: 198px; height: 198px; transform: translateX(-50%); }
+.realm-astrology__wheel > svg { width: 100%; height: 100%; overflow: visible; animation: gateway-spin 90s linear infinite; }
+.realm-astrology__wheel svg :is(line, path, circle) { fill: none; stroke: rgba(var(--realm-rgb), .25); stroke-width: .65; }
+.realm-astrology__wheel svg line { stroke: rgba(var(--realm-rgb), .5); }
+.realm-astrology__wheel svg line.is-major { stroke: rgba(var(--realm-rgb), .85); stroke-width: 1.2; }
+.realm-astrology__wheel svg .realm-astrology__ring { stroke: rgba(var(--realm-rgb), .6); }
+.realm-astrology__wheel svg .realm-astrology__ring--inner { stroke-dasharray: 2 4; }
+.realm-astrology__wheel svg .realm-astrology__core { fill: rgba(var(--realm-rgb), .04); stroke: rgba(var(--realm-rgb), .35); }
+.realm-astrology__wheel svg text { fill: var(--realm-accent); font-family: serif; font-size: 11px; text-anchor: middle; opacity: .75; }
+.realm-astrology__sigil { position: absolute; z-index: 2; top: 50%; left: 50%; width: 66px; height: 66px; display: grid; place-items: center; border: 1px solid rgba(var(--realm-rgb), .55); border-radius: 50%; background: radial-gradient(circle, #173a5c, #0c1c30 72%); box-shadow: 0 0 35px rgba(var(--realm-rgb), .28), inset 0 0 20px rgba(var(--realm-rgb), .12); transform: translate(-50%, -50%); }
+.realm-astrology__sigil > svg:first-child { width: 34px; color: var(--realm-accent); stroke-width: .9; }
+.realm-astrology__sigil > svg:last-child { position: absolute; top: 2px; right: -4px; width: 17px; color: #e8f7ff; }
+.realm-astrology__wheel .realm-astrology__sigil svg :is(line, path, circle) { stroke: var(--realm-accent); stroke-width: 1; }
+.realm-astrology__planet { position: absolute; border-radius: 50%; background: #bde5ff; box-shadow: 0 0 13px #73bcff; }
+.realm-astrology__planet--one { top: 26px; right: 25px; width: 6px; height: 6px; animation: gateway-pulse 3s ease-in-out infinite alternate; }
+.realm-astrology__planet--two { bottom: 26px; left: 32px; width: 3px; height: 3px; animation: gateway-pulse 4s 1s ease-in-out infinite alternate-reverse; }
+
+@keyframes gateway-enter { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes gateway-card-enter { from { opacity: 0; transform: perspective(1200px) translateY(35px) scale(.96); } to { opacity: 1; transform: perspective(1200px) rotateX(var(--rotate-x)) rotateY(var(--rotate-y)) translateY(0); } }
+@keyframes gateway-twinkle { from { opacity: .12; transform: scale(.7); } to { opacity: .8; transform: scale(1.35); } }
+@keyframes gateway-nebula { from { transform: translate3d(-3%, -2%, 0) scale(.92); } to { transform: translate3d(4%, 3%, 0) scale(1.1); } }
+@keyframes gateway-spin { to { transform: rotate(360deg); } }
+@keyframes gateway-pulse { from { opacity: .35; transform: scale(.8); } to { opacity: 1; transform: scale(1.4); } }
+@keyframes gateway-card-left { from { transform: translate(-58px, 8px) rotate(-18deg); } to { transform: translate(-58px, 4px) rotate(-16deg); } }
+@keyframes gateway-card-right { from { transform: translate(58px, 8px) rotate(18deg); } to { transform: translate(58px, 4px) rotate(20deg); } }
+@keyframes gateway-card-main { from { transform: translateY(-6px); } to { transform: translateY(-11px); } }
+
+@media (max-height: 780px) and (min-width: 761px) {
+  .realm-gateway__content { padding-top: 100px; }
+  .realm-gateway__intro h1 { margin-top: 8px; font-size: 30px; }
+  .realm-gateway__choices { margin-top: 20px; }
+  .realm-choice { min-height: 344px; }
+  .realm-choice__visual { height: 164px; transform: scale(.88) translateZ(22px); transform-origin: 50% 0; }
+  .realm-choice__body { padding-bottom: 21px; }
+  .realm-gateway__footer { margin-top: 15px; }
+}
+@media (max-width: 760px) {
+  .realm-gateway { overflow-y: auto; }
+  .realm-gateway__header { min-height: 72px; padding: max(14px, env(safe-area-inset-top)) max(17px, env(safe-area-inset-right)) 10px max(17px, env(safe-area-inset-left)); }
+  .realm-gateway__header .brand__sigil { width: 36px; height: 36px; }
+  .realm-gateway__header .brand__words strong { font-size: 19px; }
+  .realm-gateway__header .brand__words small { font-size: 7px; }
+  .realm-gateway__account { gap: 0; }
+  .realm-gateway__account .button { min-width: 44px; padding-inline: 10px; font-size: 11px; }
+  .realm-gateway__user { display: none; }
+  .realm-gateway__content { min-height: 100dvh; justify-content: flex-start; padding: 105px 18px max(25px, env(safe-area-inset-bottom)); }
+  .realm-gateway__eyebrow { gap: 8px; font-size: 7px; letter-spacing: .22em; }
+  .realm-gateway__eyebrow i { width: 18px; }
+  .realm-gateway__intro h1 { margin: 12px 0 8px; font-size: clamp(24px, 7vw, 31px); letter-spacing: .06em; }
+  .realm-gateway__intro p { max-width: 300px; margin: auto; font-size: 11px; letter-spacing: .03em; }
+  .realm-gateway__choices { grid-template-columns: minmax(0, 1fr); gap: 16px; margin-top: 24px; }
+  .realm-choice { min-height: 322px; border-radius: 23px; }
+  .realm-choice__visual { height: 148px; transform: scale(.78) translateZ(22px); transform-origin: 50% 0; }
+  .realm-choice__body { padding: 0 23px 21px; }
+  .realm-choice__body > strong { font-size: 21px; }
+  .realm-choice__description { min-height: 0; font-size: 11px; }
+  .realm-choice__footer { margin-top: 12px; padding-top: 12px; }
+  .realm-choice__number { top: 20px; right: 23px; }
+  .realm-gateway__footer { margin-top: 22px; font-size: 10px; line-height: 1.8; }
+  .realm-gateway__watermark { display: none; }
+}
+@media (max-width: 370px) {
+  .realm-gateway__content { padding-inline: 13px; }
+  .realm-gateway__header .brand__words small { display: none; }
+  .realm-choice__footer small { font-size: 9px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .realm-gateway *, .realm-gateway *::before, .realm-gateway *::after { scroll-behavior: auto !important; animation: none !important; transition-duration: .01ms !important; }
+  .realm-choice { transform: none !important; }
+}

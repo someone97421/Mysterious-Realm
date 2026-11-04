@@ -6,7 +6,7 @@ from time import monotonic
 
 from pydantic import ValidationError
 
-from . import astro_runtime, db, llm, maintenance, reading
+from . import astro_runtime, db, llm, maintenance, reading, tool_availability
 from .agent_prompts import Action, FINAL, PLANNER, SKILLS, VOICE, allowed_tools, knowledge, skill_index
 from .astro_pack.shared.protocol import input_schemas, tool_catalog
 from .context import bounded, build_context, conversation_profiles
@@ -110,6 +110,10 @@ def read_result(conversation_id, action, profiles):
     versions = {p["id"]: p["version"] for p in profiles}
     if any(versions.get(identity) != version for identity, version in original.get("profile_versions", {}).items()):
         raise AgentFailure("人物资料已更新，需要按新资料计算。", "PROFILE_VERSION_CHANGED")
+    response = {"result_id": action.result_id, "path": action.path, "source": original.get("source"),
+                "status": original.get("status"), "limitations": original.get("limitations", [])}
+    if original.get("status") != "ok":
+        return {**response, "error": original.get("error") or {"code": "RESULT_NOT_READY", "message": "这份结果没有可读取的数据，请调整后续动作。"}, "value": None}
     value = original
     for key in action.path.split("."):
         if isinstance(value, dict) and key in value:
@@ -117,11 +121,12 @@ def read_result(conversation_id, action, profiles):
         elif isinstance(value, list) and key.isdigit() and int(key) < len(value):
             value = value[int(key)]
         else:
-            raise AgentFailure("结果中没有这个字段，请按结果索引调整读取范围。", "RESULT_FIELD_MISSING")
+            available = {"available_fields": list(value)} if isinstance(value, dict) else {"available_range": {"start": 0, "end": len(value) - 1}} if isinstance(value, list) else {}
+            return {**response, "status": "error", "error": {"code": "RESULT_FIELD_MISSING",
+                    "message": "路径不存在；请按 available_fields 或 available_range 修正，不要重复猜测。", "failed_segment": key, **available}, "value": None}
     if isinstance(value, list):
         value = {"items": value[action.offset:action.offset + action.limit], "total": len(value), "offset": action.offset}
-    return {"result_id": action.result_id, "path": action.path, "source": original.get("source"),
-            "status": original.get("status"), "limitations": original.get("limitations", []), "value": bounded(value, 10000)}
+    return {**response, "value": bounded(value, 10000)}
 
 
 def result_sources(observations):
@@ -234,8 +239,7 @@ async def final_answer(job, model, user, selected, observations, length_mode, la
 async def run_agent(job, model, user, length_mode):
     selected, schemas, observations, attempted = [], {}, [], {}
     profiles = conversation_profiles(job.conversation_id)
-    enabled = set(runtime_settings()["enabled_tools"]) - {"render-chart", "provider-usage"}
-    catalog = {name: spec["description"] for name, spec in tool_catalog().items() if name in enabled}
+    unavailable = {"render-chart", "provider-usage"}
     layout, failures, blocked = "chat", 0, False
     initial = progress(job, "正在聆听你的问题，整理这一段星空旅程。")
     try:
@@ -244,6 +248,9 @@ async def run_agent(job, model, user, length_mode):
                 raise asyncio.CancelledError
             observation, action = {}, None
             try:
+                enabled = tool_availability.available_tools(runtime_settings()) - unavailable
+                catalog = {name: spec["description"] for name, spec in tool_catalog().items() if name in enabled}
+                schemas = {tool: schema for tool, schema in schemas.items() if tool in enabled}
                 system = VOICE + "\n" + PLANNER + "\n当前UTC时间：" + datetime.now(timezone.utc).isoformat()
                 system += "\n业务索引：" + db.dumps(skill_index()) + "\n已启用工具：" + db.dumps(catalog)
                 system += "\n当前业务：" + db.dumps(selected) + "\n" + knowledge(selected)
@@ -308,6 +315,13 @@ async def run_agent(job, model, user, length_mode):
                     observation["result"] = bounded(result)
                     if result["status"] != "ok":
                         error = result.get("error") or {}
+                        if error.get("exhausted") or error.get("code") in tool_availability.UNAVAILABLE_ERRORS:
+                            unavailable.add(action.tool)
+                            observation["notice"] = "本轮不再调用此工具，也不更换参数重试。请使用其他可用能力或基于已有资料说明限制并回答。"
+                            progress(job, "这部分资料暂不可用，将沿用已取得的线索继续。", "complete", identity)
+                            observations.append(observation)
+                            failures = 0
+                            continue
                         raise AgentFailure(error.get("message") or astro_runtime.public_error(error.get("code")), error.get("code") or "CALCULATION_ERROR")
                     if result.get("cache", {}).get("hit"):
                         end = "这份星象已在此前保存，沿着已有的星图继续。"

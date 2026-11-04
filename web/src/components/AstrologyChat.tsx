@@ -21,11 +21,12 @@ function ProgressLog({ items, working, current }: { items: Progress[]; working: 
   return <details className="progress-log" open={working && current}><summary>本次探索进度 · {items.length}</summary><ol>{items.map(progress => { const pending = progress.state === 'running' && !working; return <li key={progress.id} className={`progress-${pending ? 'idle' : progress.state}`}><span aria-hidden="true">{progress.state === 'complete' ? <Check /> : progress.state === 'error' ? <CircleAlert /> : pending ? <Minus /> : <LoaderCircle className="spin" />}</span><div><span>{publicText(progress.text)}</span><time>{formatDate(progress.created_at, true)}</time></div>{pending && <small>（已结束）</small>}</li>; })}</ol></details>;
 }
 
-export function AstrologyChat({ user, config, onLogout, onAdmin, mode, initialConversationId, onOpenConversation, onSwitchMode }: {
+export function AstrologyChat({ user, config, onLogout, onAdmin, onHome, mode, initialConversationId, onOpenConversation, onSwitchMode }: {
   user: User;
   config: AppConfig;
   onLogout: () => void;
   onAdmin: () => void;
+  onHome: () => void;
   mode: Mode;
   initialConversationId?: string | null;
   onOpenConversation: (conversation: Conversation) => void;
@@ -236,7 +237,7 @@ export function AstrologyChat({ user, config, onLogout, onAdmin, mode, initialCo
     if (cursor < progress.length) timelineItems.push(<ProgressLog key="progress-current" items={progress.slice(cursor)} working={working} current />);
   }
   const sidebar = <>
-    <div className="sidebar__top"><Brand compact /><IconButton className="sidebar__mobile-close" label="关闭历史" onClick={() => setDrawer(false)}><Menu /></IconButton></div>
+    <div className="sidebar__top"><Brand compact onClick={onHome} /><IconButton className="sidebar__mobile-close" label="关闭历史" onClick={() => setDrawer(false)}><Menu /></IconButton></div>
     <NewConversationButtons mode={mode} disabled={working} onNew={next => { if (working) return; if (next === mode) select(null); else { setDrawer(false); void onSwitchMode(next); } }} />
     <div className="sidebar__section-label"><span>往昔星轨</span><small>{conversations.length || ''}</small></div>
     <nav className="conversation-list" aria-label="历史对话">

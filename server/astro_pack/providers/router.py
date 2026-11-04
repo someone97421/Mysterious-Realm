@@ -15,7 +15,7 @@ from ..shared.protocol import issue, tool_catalog
 
 PROVIDER_CLASSES = {"cosmyday": CosmyDayProvider, "astroway": AstroWayProvider, "mock": MockProvider}
 RETRYABLE_FAILURES = {
-    "MISSING_API_KEY", "AUTHENTICATION_FAILED", "PAYMENT_REQUIRED", "CREDIT_SPEND_NOT_ALLOWED",
+    "MISSING_API_KEY", "AUTHENTICATION_FAILED", "PERMISSION_DENIED", "PAYMENT_REQUIRED", "CREDIT_SPEND_NOT_ALLOWED",
     "UNKNOWN_COST_NOT_ALLOWED", "COST_LIMIT_EXCEEDED", "CREDITS_EXHAUSTED", "SPEND_CAP_REACHED",
     "KEY_BUDGET_EXHAUSTED", "RATE_LIMIT", "NETWORK_ERROR", "PROVIDER_UNAVAILABLE", "PROVIDER_ERROR",
     "PROVIDER_RESPONSE_ERROR", "TIMEOUT", "CACHE_MISS_OFFLINE",
@@ -107,8 +107,10 @@ class ToolService:
             try:
                 envelope = provider.execute(tool, payload)
             except ToolError as error:
-                attempts.append({"service_name": service.get("name"), "provider": service["provider"],
-                                 "code": error.code, "retryable": error.code in RETRYABLE_FAILURES or error.retryable,
+                details = error.details if isinstance(error.details, dict) else {}
+                attempts.append({"service_id": service.get("id"), "service_name": service.get("name"), "provider": service["provider"],
+                                 "code": error.code, "retryable": error.retryable,
+                                 "http_status": details.get("http_status"), "provider_code": details.get("provider_code"),
                                  "credits": None})
                 if read_cache and error.retryable:
                     stale = self.cache.get(keys[service["id"]], allow_stale=True)
@@ -145,7 +147,7 @@ class ToolService:
                 envelope["meta"]["degraded"] = True
             return envelope
 
-        exhausted = len(attempts) >= min(3, len(eligible))
+        exhausted = len(attempts) >= min(3, len(eligible)) and all(item.get("code") in RETRYABLE_FAILURES for item in attempts)
         last = attempts[-1] if attempts else {"code": "PROVIDER_UNAVAILABLE", "retryable": True}
-        raise ToolError(last["code"], "占星服务暂时无法完成这项计算。", retryable=bool(last.get("retryable")),
+        raise ToolError(last["code"], "占星服务暂时无法完成这项计算。", retryable=not exhausted and bool(last.get("retryable")),
                         details={"attempts": attempts, "exhausted": exhausted})

@@ -9,7 +9,7 @@ DEFAULTS = {
     "max_credits": 100,
     "timeout": 30.0,
     "cache_enabled": True,
-    "enabled_tools": list(ASTRO_TOOLS),
+    "enabled_tools": [tool for tool in ASTRO_TOOLS if tool != "transit-calendar"],
 }
 
 

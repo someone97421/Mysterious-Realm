@@ -56,11 +56,12 @@ function safeAssistantText(content: string, reading = false): string {
   return content;
 }
 
-export function Chat({ user, config, onLogout, onAdmin, mode, initialConversationId, onOpenConversation, onSwitchMode }: {
+export function Chat({ user, config, onLogout, onAdmin, onHome, mode, initialConversationId, onOpenConversation, onSwitchMode }: {
   user: User;
   config: AppConfig;
   onLogout: () => void;
   onAdmin: () => void;
+  onHome: () => void;
   mode: Mode;
   initialConversationId?: string | null;
   onOpenConversation: (conversation: Conversation) => void;
@@ -565,7 +566,7 @@ export function Chat({ user, config, onLogout, onAdmin, mode, initialConversatio
 
   const sidebar = (
     <>
-      <div className="sidebar__top"><Brand compact /><IconButton className="sidebar__mobile-close" label="关闭历史" onClick={() => setSidebarOpen(false)}><X /></IconButton></div>
+      <div className="sidebar__top"><Brand compact onClick={onHome} /><IconButton className="sidebar__mobile-close" label="关闭历史" onClick={() => setSidebarOpen(false)}><X /></IconButton></div>
       <NewConversationButtons mode={mode} switchingDisabled={anyGenerating} onNew={next => { if (next === mode) selectConversation(null); else if (!anyGenerating) { setSidebarOpen(false); void onSwitchMode(next); } }} />
       <div className="sidebar__section-label"><span>往昔星轨</span><small>{conversations.length || ''}</small></div>
       <div className="conversation-list">
@@ -640,7 +641,7 @@ export function Chat({ user, config, onLogout, onAdmin, mode, initialConversatio
                 text={currentStream?.drawId === item.draw.id && !item.draw.reading ? currentStream.reasoning : currentDetail?.messages.find((message) => message.draw_id === item.draw.id && message.kind === 'reading')?.reasoning}
                 active={Boolean(currentStream?.active && currentStream.drawId === item.draw.id && !item.draw.reading)}
               />
-              <DrawPanel
+              {ceremony?.id !== item.draw.id && <DrawPanel
                 key={item.key}
                 draw={item.draw}
                 onOpenCeremony={setCeremony}
@@ -649,7 +650,7 @@ export function Chat({ user, config, onLogout, onAdmin, mode, initialConversatio
                 streamReading={currentStream?.drawId === item.draw.id ? currentStream.reading : undefined}
                 streamStatus={currentStream?.drawId === item.draw.id ? currentStream.status : ''}
                 error={currentStream?.drawId === item.draw.id ? currentStream.error : ''}
-              />
+              />}
               </Fragment>
             ))}
             {currentStream?.error && currentStream.kind === 'chat' && (

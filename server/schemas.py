@@ -361,7 +361,7 @@ class AstrologySettingsPatch(BaseModel):
     max_credits: int | None = Field(default=100, ge=0, le=1000000)
     timeout: float = Field(default=30, gt=0, le=3600)
     cache_enabled: bool = True
-    enabled_tools: list[str] = Field(default_factory=lambda: list(ASTRO_TOOLS), max_length=len(ASTRO_TOOLS))
+    enabled_tools: list[str] = Field(default_factory=lambda: [tool for tool in ASTRO_TOOLS if tool != "transit-calendar"], max_length=len(ASTRO_TOOLS))
     api_key: str | None = Field(default=None, max_length=8192)
     clear_api_key: bool = False
 

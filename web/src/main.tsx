@@ -7,5 +7,6 @@ import './mode-theme.css';
 import './workspace-layout.css';
 import './auth.css';
 import './loading.css';
+import './gateway.css';
 
 createRoot(document.getElementById('root')!).render(<><TooltipLayer /><App /></>);

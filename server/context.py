@@ -85,8 +85,10 @@ def compact_astrology_facts(conversation_id):
     for row in runs:
         result = json.loads(row["result"] or "{}")
         compatible = all(versions.get(identity) == version for identity, version in result.get("profile_versions", {}).items())
+        data = result.get("data")
         index.append({"id": row["id"], "tool": row["tool"], "status": result.get("status"), "created_at": row["created_at"],
-                      "profile_ids": result.get("profile_ids", []), "matches_current_profiles": compatible})
+                      "profile_ids": result.get("profile_ids", []), "matches_current_profiles": compatible,
+                      "data_fields": list(data) if isinstance(data, dict) else []})
         if compatible and len(recent) < 3:
             recent.append(brief(result))
     return {"profiles": profiles, "result_index": index, "recent_results": recent}

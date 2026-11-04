@@ -6,7 +6,7 @@ import hashlib
 import json
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from . import db, maintenance
+from . import db, maintenance, tool_availability
 from .config import DATA_DIR
 from .settings import runtime_settings
 from .chart_data import finite, make_chart
@@ -27,8 +27,14 @@ def public_error(code):
         return "占星服务的鉴权未通过，请管理员检查对应服务卡密钥。"
     if code == "MISSING_API_KEY":
         return "这张 AstroWay 服务卡尚未配置密钥，已尝试其他可用服务。"
-    if code in {"CREDIT_SPEND_NOT_ALLOWED", "UNKNOWN_COST_NOT_ALLOWED", "COST_LIMIT_EXCEEDED", "PAYMENT_REQUIRED", "CREDITS_EXHAUSTED", "SPEND_CAP_REACHED", "KEY_BUDGET_EXHAUSTED"}:
-        return "占星服务的额度或费用策略不允许执行这项计算，已尝试其他可用服务。"
+    if code == "PAYMENT_REQUIRED":
+        return "当前服务套餐未开放这项能力或订阅已到期，已跳过该接口。"
+    if code == "PERMISSION_DENIED":
+        return "当前服务卡没有这项接口权限，已跳过该接口。"
+    if code in {"CREDIT_SPEND_NOT_ALLOWED", "UNKNOWN_COST_NOT_ALLOWED", "COST_LIMIT_EXCEEDED"}:
+        return "当前费用设置不允许执行这项计算，请检查应用内的费用设置。"
+    if code in {"CREDITS_EXHAUSTED", "SPEND_CAP_REACHED", "KEY_BUDGET_EXHAUSTED"}:
+        return "AstroWay 服务卡额度已用尽或达到消费上限，已尝试其他可用服务。"
     if code in {"TOOL_DISABLED", "UNSUPPORTED_CAPABILITY"}:
         return "当前没有已启用的占星服务能处理这项参数组合。"
     if code in {"NETWORK_ERROR", "PROVIDER_UNAVAILABLE", "RATE_LIMIT", "TIMEOUT", "OFFLINE", "CACHE_MISS_OFFLINE"}:
@@ -153,7 +159,10 @@ def execute_sync(tool, payload, user, conversation_id=None, profiles=None, stop=
         resolved, used = bind_payload(tool, payload, profiles)
         normalized, warnings, uncertainty = validate_input(tool, resolved)
         config = make_config(user["id"], settings)
-        envelope = ToolService(config, settings.get("services", [])).execute(tool, normalized, warnings, uncertainty, stop=stop)
+        services = tool_availability.services_for(tool, settings)
+        if not services:
+            raise ToolError("TOOL_DISABLED", "当前服务卡没有可用的对应接口。")
+        envelope = ToolService(config, services).execute(tool, normalized, warnings, uncertainty, stop=stop)
         meta = envelope.get("meta") or {}
         provider = meta.get("provider") or next((item.get("provider", "") for item in meta.get("attempts", [])[::-1] if item.get("code") is None), "")
         service_name = meta.get("service_name")
@@ -202,6 +211,9 @@ def execute_sync(tool, payload, user, conversation_id=None, profiles=None, stop=
             return result, None
         if conversation_id and not connection.execute("SELECT 1 FROM conversations WHERE id=? AND user_id=?", (conversation_id, user["id"])).fetchone():
             return result, None
+        tool_availability.remember_denials(connection, tool, attempt_records, settings)
+        if attempt_records:
+            result["attempts"] = attempt_records
         records = attempt_records or [{"service_name": service_name, "provider": provider, "credits": credits, "code": error_code}]
         for index, attempt in enumerate(records, 1):
             final = index == len(records)

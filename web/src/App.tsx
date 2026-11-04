@@ -6,6 +6,7 @@ import { Auth } from './components/Auth';
 import { AstrologyChat } from './components/AstrologyChat';
 import { Chat } from './components/Chat';
 import { ModeTransition } from './components/ModeTransition';
+import { RealmGateway } from './components/RealmGateway';
 import { Button, InlineNotice } from './components/ui';
 import type { AppConfig, Conversation, Mode, User } from './types';
 import { errorMessage } from './utils';
@@ -20,12 +21,15 @@ export default function App() {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [configLoading, setConfigLoading] = useState(false);
   const [configError, setConfigError] = useState('');
-  const [mode, setMode] = useState<Mode>('tarot');
+  const [mode, setMode] = useState<Mode | null>(null);
   const [activeConversationId, setActiveConversationId] = useState<string | null | undefined>(undefined);
   const [transition, setTransition] = useState<WorkspaceTransition | null>(null);
   const [adminRoute, setAdminRoute] = useState(() => window.location.hash === '#/admin');
 
-  useEffect(() => { document.documentElement.dataset.mode = mode; }, [mode]);
+  useEffect(() => {
+    if (mode) document.documentElement.dataset.mode = mode;
+    else delete document.documentElement.dataset.mode;
+  }, [mode]);
   const checkAuth = useCallback(async () => {
     setAuthLoading(true);
     try {
@@ -45,7 +49,7 @@ export default function App() {
   useEffect(() => {
     if (!user) { setConfig(null); return; }
     const stored = localStorage.getItem(`xingwei.mode.${user.id}`);
-    setMode(stored === 'astrology' ? 'astrology' : 'tarot');
+    setMode(stored === 'astrology' || stored === 'tarot' ? stored : null);
     setActiveConversationId(undefined);
     setConfig(null);
     void loadConfig();
@@ -59,7 +63,7 @@ export default function App() {
   const logout = async () => {
     try { await api<{ ok: true }>('/api/auth/logout', { method: 'POST' }); } catch { /* 本地会话仍需退出 */ }
     window.location.hash = '';
-    setUser(null); setConfig(null); setSetupRequired(false); setActiveConversationId(undefined); setTransition(null);
+    setUser(null); setConfig(null); setSetupRequired(false); setMode(null); setActiveConversationId(undefined); setTransition(null);
   };
   const authenticated = (value: User) => {
     localStorage.removeItem(`xingwei.active.${value.id}.tarot`);
@@ -69,6 +73,12 @@ export default function App() {
     setSetupRequired(false); setUser(value);
   };
   const backToChat = () => { window.location.hash = ''; setAdminRoute(false); void loadConfig(); };
+  const goHome = () => {
+    if (!user || transition) return;
+    localStorage.removeItem(`xingwei.mode.${user.id}`);
+    setMode(null);
+    setActiveConversationId(undefined);
+  };
   const switchMode = async (next: Mode) => {
     if (next === mode || !user || transition) return;
     setTransition({ mode: next, conversationId: null, phase: 'cover' });
@@ -100,8 +110,14 @@ export default function App() {
   if (configError && !config) return <LoadingScreen message="探索暂未就绪" busy={false}><InlineNotice tone="error">{configError}</InlineNotice><Button variant="secondary" onClick={() => void loadConfig()}>重试</Button><Button variant="ghost" onClick={() => void logout()}>退出登录</Button></LoadingScreen>;
   if (!config) return <LoadingScreen message="正在准备探索空间" />;
   if (adminRoute && user.role === 'admin') return <Admin user={user} onBack={backToChat} onLogout={() => void logout()} />;
+  if (!mode) return <>
+    <div ref={element => { if (element) element.inert = !!transition; }}>
+      <RealmGateway user={user} busy={!!transition} onSelect={next => void switchMode(next)} onAdmin={() => { window.location.hash = '#/admin'; }} onLogout={() => void logout()} />
+    </div>
+    {transition && <ModeTransition mode={transition.mode} phase={transition.phase} onCovered={revealWorkspace} onFinished={() => setTransition(null)} />}
+  </>;
   const workspaceKey = `${user.id}:${mode}:${activeConversationId === undefined ? 'stored' : activeConversationId || 'new'}`;
-  const common = { user, config, onLogout: () => void logout(), onAdmin: () => { setActiveConversationId(undefined); window.location.hash = '#/admin'; }, mode, initialConversationId: activeConversationId, onOpenConversation: openConversation, onSwitchMode: switchMode };
+  const common = { user, config, onLogout: () => void logout(), onAdmin: () => { setActiveConversationId(undefined); window.location.hash = '#/admin'; }, onHome: goHome, mode, initialConversationId: activeConversationId, onOpenConversation: openConversation, onSwitchMode: switchMode };
   return <>
     <div className="mode-workspace" ref={element => { if (element) element.inert = !!transition; }}>
       {mode === 'astrology' ? <AstrologyChat key={workspaceKey} {...common} /> : <Chat key={workspaceKey} {...common} />}
